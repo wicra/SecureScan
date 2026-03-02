@@ -1,18 +1,41 @@
-// Middleware de gestion centralisée des erreurs
-// Doit toujours être le DERNIER middleware dans app.js
+// Middleware de gestion d'erreurs centralisé
+// Doit être monté en DERNIER dans Express (après toutes les routes)
+const errorMiddleware = (err, req, res, next) => {
+  console.error(`❌ [${req.method} ${req.path}]`, err.message);
 
-// eslint-disable-next-line no-unused-vars
-module.exports = (err, req, res, next) => {
-  const status  = err.status || 500;
-  const message = err.message || 'Erreur interne du serveur';
+  if (process.env.NODE_ENV === "development") {
+    console.error(err.stack);
+  }
 
-  console.error(`[ERROR] ${status} — ${message}`);
+  // Erreurs de validation Zod
+  if (err.name === "ZodError") {
+    return res.status(400).json({
+      error: "Données invalides.",
+      details: err.errors.map((e) => ({
+        field: e.path.join("."),
+        message: e.message,
+      })),
+    });
+  }
 
-  res.status(status).json({
-    error: {
-      message,
-      status,
-      ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
-    },
+  // Erreurs Prisma
+  if (err.code === "P2002") {
+    return res.status(409).json({
+      error: "Cette ressource existe déjà.",
+    });
+  }
+
+  if (err.code === "P2025") {
+    return res.status(404).json({
+      error: "Ressource introuvable.",
+    });
+  }
+
+  // Erreur générique
+  const statusCode = err.statusCode || 500;
+  res.status(statusCode).json({
+    error: err.message || "Erreur interne du serveur.",
   });
 };
+
+module.exports = errorMiddleware;

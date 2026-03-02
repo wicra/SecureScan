@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  githubId     String?  @unique @map("github_id")
+  avatarUrl    String?  @map("avatar_url")
+  role         String   @default("analyste")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  scans Scan[]
+
+  @@map("users")
+}
+
+model Scan {
+  id           Int       @id @default(autoincrement())
+  userId       Int       @map("user_id")
+  repoUrl      String    @map("repo_url")
+  repoName     String    @map("repo_name")
+  language     String?
+  analyzers    String[]
+  status       String    @default("pending")
+  score        Int?
+  vulnCritical Int       @default(0) @map("vuln_critical")
+  vulnHigh     Int       @default(0) @map("vuln_high")
+  vulnMedium   Int       @default(0) @map("vuln_medium")
+  vulnLow      Int       @default(0) @map("vuln_low")
+  secretsCount Int       @default(0) @map("secrets_count")
+  filesTotal   Int       @default(0) @map("files_total")
+  resultsJson  Json?     @map("results_json")
+  isFavorite   Boolean   @default(false) @map("is_favorite")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  completedAt  DateTime? @map("completed_at")
+
+  user     User       @relation(fields: [userId], references: [id])
+  vulnFixes VulnFix[]
+
+  @@map("scans")
+}
+
+model VulnFix {
+  id        Int      @id @default(autoincrement())
+  scanId    Int      @map("scan_id")
+  ruleId    String   @map("rule_id")
+  filePath  String   @map("file_path")
+  lineStart Int      @map("line_start")
+  fixedAt   DateTime @default(now()) @map("fixed_at")
+
+  scan Scan @relation(fields: [scanId], references: [id])
+
+  @@map("vuln_fixes")
+}
