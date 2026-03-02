@@ -3,60 +3,102 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
+// ─────────────────────────────────────────────
+// TABLE : users
+// ─────────────────────────────────────────────
 model User {
   id           Int      @id @default(autoincrement())
   name         String
   email        String   @unique
-  passwordHash String   @map("password_hash")
-  githubId     String?  @unique @map("github_id")
-  avatarUrl    String?  @map("avatar_url")
-  role         String   @default("analyste")
-  createdAt    DateTime @default(now()) @map("created_at")
+  passwordHash String?                          // null si OAuth GitHub
+  githubId     String?  @unique
+  avatarUrl    String?
+  role         String   @default("analyste")   // analyste | admin
+  createdAt    DateTime @default(now())
 
-  scans Scan[]
+  scans        Scan[]
 
   @@map("users")
 }
 
+// ─────────────────────────────────────────────
+// TABLE : scans
+// ─────────────────────────────────────────────
 model Scan {
-  id           Int       @id @default(autoincrement())
-  userId       Int       @map("user_id")
-  repoUrl      String    @map("repo_url")
-  repoName     String    @map("repo_name")
-  language     String?
-  analyzers    String[]
-  status       String    @default("pending")
-  score        Int?
-  vulnCritical Int       @default(0) @map("vuln_critical")
-  vulnHigh     Int       @default(0) @map("vuln_high")
-  vulnMedium   Int       @default(0) @map("vuln_medium")
-  vulnLow      Int       @default(0) @map("vuln_low")
-  secretsCount Int       @default(0) @map("secrets_count")
-  filesTotal   Int       @default(0) @map("files_total")
-  resultsJson  Json?     @map("results_json")
-  isFavorite   Boolean   @default(false) @map("is_favorite")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  completedAt  DateTime? @map("completed_at")
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  user          User      @relation(fields: [userId], references: [id])
 
-  user     User       @relation(fields: [userId], references: [id])
-  vulnFixes VulnFix[]
+  repoUrl       String
+  repoName      String?
+  language      String?
+  branch        String    @default("main")
+
+  status        String    @default("pending")  // pending | running | completed | failed
+
+  // Stats pré-calculées (affichées dans le dashboard)
+  score         Int       @default(0)          // 0-100
+  vulnTotal     Int       @default(0)
+  vulnCritical  Int       @default(0)
+  vulnHigh      Int       @default(0)
+  vulnMedium    Int       @default(0)
+  vulnLow       Int       @default(0)
+  secretsCount  Int       @default(0)
+  filesTotal    Int       @default(0)
+  filesImpacted Int       @default(0)
+
+  isFavorite    Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  completedAt   DateTime?
+
+  vulnerabilities Vulnerability[]
+  reports         Report[]
 
   @@map("scans")
 }
 
-model VulnFix {
+// ─────────────────────────────────────────────
+// TABLE : vulnerabilities
+// ─────────────────────────────────────────────
+model Vulnerability {
+  id            Int      @id @default(autoincrement())
+  scanId        Int
+  scan          Scan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
+
+  tool          String   // semgrep | eslint | npm_audit | trufflehog
+  title         String
+  description   String?
+  severity      String   // critical | high | medium | low
+  owaspCategory String?  // A05:2025, A01:2025…
+  filePath      String?
+  lineStart     Int?
+  lineEnd       Int?
+  ruleId        String?  // "javascript.express.sqli"
+  codeSnippet   String?
+  fixSuggestion String?
+  cvssScore     Decimal? @db.Decimal(3, 1)
+  isFixed       Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  @@map("vulnerabilities")
+}
+
+// ─────────────────────────────────────────────
+// TABLE : reports
+// ─────────────────────────────────────────────
+model Report {
   id        Int      @id @default(autoincrement())
-  scanId    Int      @map("scan_id")
-  ruleId    String   @map("rule_id")
-  filePath  String   @map("file_path")
-  lineStart Int      @map("line_start")
-  fixedAt   DateTime @default(now()) @map("fixed_at")
+  scanId    Int
+  scan      Scan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
 
-  scan Scan @relation(fields: [scanId], references: [id])
+  format    String   // pdf | html
+  language  String   @default("fr")  // fr | en
+  fileUrl   String?
+  createdAt DateTime @default(now())
 
-  @@map("vuln_fixes")
+  @@map("reports")
 }
