@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-bg: #0a0c10;
+  --color-surface: #111318;
+  --color-surface2: #1a1d25;
+  --color-border: #1f2330;
+  --color-border2: #2a2f40;
+  --color-text: #e8eaf0;
+  --color-text2: #8b91a8;
+  --color-text3: #555c72;
+  --color-accent: #3b82f6;
+  --color-accent2: #1d4ed8;
+  --color-green: #22c55e;
+  --color-red: #ef4444;
+  --color-orange: #f97316;
+  --color-yellow: #eab308;
+  --color-purple: #a855f7;
+  --font-mono: var(--font-space-mono);
+  --font-sans: var(--font-dm-sans);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+body {
+  background: var(--color-bg);
+  font-family: var(--font-dm-sans);
+  color: var(--color-text);
+  min-width: 320px;
+}
+
+/* Grille de fond */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background-image: linear-gradient(var(--color-border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-border) 1px, transparent 1px);
+  background-size: 60px 60px;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: radial-gradient(
+    ellipse 120% 80% at 50% 0%,
+    rgba(59, 130, 246, 0.07) 0%,
+    transparent 60%
+  );
+  pointer-events: none;
+}
