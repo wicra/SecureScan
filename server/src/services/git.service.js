@@ -24,9 +24,9 @@ const GitService = {
 
     const git = simpleGit();
 
-    // Clone avec une profondeur limitée pour aller plus vite
-    // depth: 50 commits suffisent pour TruffleHog
-    await git.clone(repoUrl, repoPath, ["--depth", "50"]);
+    // DEPTH 500 : assez pour que TruffleHog scanne l'historique sans tout cloner
+    // --depth 50 manque la majorité des secrets supprimés dans d'anciens commits
+    await git.clone(repoUrl, repoPath, ["--depth", "500"]);
 
     console.log(`✅ Clonage terminé : ${repoPath}`);
 
