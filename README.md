@@ -180,12 +180,91 @@ docker-compose up --build
 
 ---
 
+## 🌿 Gestion du travail — Stratégie Git
+
+### Branches principales
+
+| Branche | Rôle |
+|---------|------|
+| `main`  | 🚀 **Production** — code stable, testé, prêt à présenter. Merge uniquement via PR approuvée. |
+| `dev`   | 🔧 **Développement** — branche commune d'intégration. On merge toutes les features ici avant `main`. |
+
+> **Règle d'or :** on ne pousse **jamais** directement sur `main`. Toujours passer par `dev` → PR → `main`.
+
+---
+
+### Branches de fonctionnalité
+
+Toutes les branches de travail partent de `dev` et suivent la convention :
+
+```
+feature/backend/<nom-court>     ← Dev backend A & B
+feature/frontend/<nom-court>    ← Dev frontend
+fix/backend/<nom-court>         ← Correction bug backend
+fix/frontend/<nom-court>        ← Correction bug frontend
+chore/<nom-court>               ← Config, docs, refacto
+```
+
+**Exemples concrets pour ce projet :**
+
+```
+feature/backend/auth-login
+feature/backend/semgrep-integration
+feature/backend/scan-controller
+feature/backend/vulnerabilities-api
+feature/frontend/dashboard-chart
+feature/frontend/scan-form
+feature/frontend/results-detail
+fix/backend/scan-timeout
+chore/db-migrations
+```
+
+---
+
+### Workflow au quotidien
+
+```bash
+# 1. Toujours partir de dev à jour
+git checkout dev
+git pull origin dev
+
+# 2. Créer sa branche
+git checkout -b feature/backend/semgrep-integration
+
+# 3. Coder, commiter régulièrement
+git add .
+git commit -m "feat(backend): add semgrep runner service"
+
+# 4. Rester à jour avec dev (rebase recommandé)
+git fetch origin
+git rebase origin/dev
+
+# 5. Pousser et ouvrir une PR vers dev
+git push -u origin feature/backend/semgrep-integration
+```
+
+> Ouvrir la PR vers **`dev`**, pas vers `main`. Une fois `dev` stable et testé → PR `dev` → `main` pour la démo/soutenance.
+
+---
+
+### Répartition des branches par personne
+
+| Personne | Branches |
+|----------|----------|
+| 👤 Dev Backend A | `feature/backend/auth-*`, `feature/backend/scan-*`, `fix/backend/*` |
+| 👤 Dev Backend B | `feature/backend/semgrep-*`, `feature/backend/vulnerabilities-*`, `chore/db-*` |
+| 👤 Dev Frontend  | `feature/frontend/*`, `fix/frontend/*` |
+
+---
+
 ## 🤝 Contribuer
 
-1. Crée une branche : `git checkout -b feature/ma-fonctionnalite`
-2. Fais tes modifications et commite : `git commit -m "feat: ..."`
-3. Push : `git push origin feature/ma-fonctionnalite`
-4. Ouvre une **Pull Request**
+1. Pars toujours de `dev` : `git checkout dev && git pull origin dev`
+2. Crée ta branche : `git checkout -b feature/backend/ma-fonctionnalite`
+3. Commite avec un message clair : `git commit -m "feat(backend): description"`
+4. Rebase sur `dev` avant de pusher : `git rebase origin/dev`
+5. Push et ouvre une **Pull Request vers `dev`**
+6. Fais relire par au moins 1 autre membre avant de merger
 
 ---
 
