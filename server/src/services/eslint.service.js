@@ -68,8 +68,19 @@ async function runEslint(repoPath) {
   // TRANSFORME LES RÉSULTATS EN FORMAT VULNÉRABILITÉ STANDARD
   const vulns = [];
   for (const file of parsed) {
+    // file.source = contenu complet du fichier (fourni par ESLint en mémoire)
+    const fileLines = file.source ? file.source.split('\n') : null;
+
     for (const msg of file.messages) {
       if (!msg.ruleId) continue;
+
+      // Extraire les lignes autour de la vuln depuis le source en mémoire
+      let codeSnippet = null;
+      if (fileLines && msg.line) {
+        const from = Math.max(0, msg.line - 1 - 4);
+        const to   = Math.min(fileLines.length, (msg.endLine || msg.line) + 4);
+        codeSnippet = fileLines.slice(from, to).join('\n');
+      }
       vulns.push({
         tool:          'eslint',
         ruleId:        msg.ruleId,
@@ -79,7 +90,7 @@ async function runEslint(repoPath) {
         filePath:      file.filePath || null,
         lineStart:     msg.line      || null,
         lineEnd:       msg.endLine   || msg.line || null,
-        codeSnippet:   msg.source    || null,
+        codeSnippet:   codeSnippet,
         fixSuggestion: null,
         cvssScore:     null,
         owaspCategory: null,
