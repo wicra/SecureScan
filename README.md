@@ -10,6 +10,7 @@
 SecureScan est une **plateforme web** qui analyse automatiquement le code d'un dépôt Git à la recherche de **failles de sécurité**.
 
 L'idée est simple :
+
 1. Tu entres l'URL d'un repo Git (ou tu uploades ton code)
 2. La plateforme lance des outils d'analyse en arrière-plan
 3. Elle affiche un **dashboard clair** avec les vulnérabilités détectées, classées selon l'OWASP Top 10
@@ -20,12 +21,12 @@ L'idée est simple :
 
 ## ⚙️ Stack technique
 
-| Couche      | Technologie              |
-|-------------|--------------------------|
-| Frontend    | **React** (Vite)         |
-| Backend     | **Node.js** (Express)    |
-| Base de données | **PostgreSQL**       |
-| Analyseurs  | Semgrep, ESLint Security, npm audit, TruffleHog, Bandit |
+| Couche | Technologie |
+|---|---|
+| Frontend | **React** (Vite) + TypeScript |
+| Backend | **Node.js** (Express) + TypeScript |
+| Base de données | **PostgreSQL** |
+| Analyseurs | Semgrep, ESLint Security, npm audit, TruffleHog, Bandit |
 
 > 📦 Le frontend et le backend sont dans le **même dépôt** (monorepo).
 
@@ -36,28 +37,27 @@ L'idée est simple :
 ```
 SecureScan/
 │
-├── client/                  # 🎨 Frontend React
-│   ├── public/
+├── front/                   # 🎨 Frontend React + TypeScript
 │   └── src/
 │       ├── components/      # Composants réutilisables
 │       ├── pages/           # Dashboard, Scan, Rapport…
 │       ├── services/        # Appels API vers le backend
-│       └── App.jsx
+│       └── App.tsx
 │
-├── server/                  # 🔧 Backend Node.js / Express
+├── server/                  # 🔧 Backend Node.js / Express + TypeScript
 │   ├── routes/              # Endpoints API REST
 │   ├── controllers/         # Logique métier
 │   ├── services/            # Intégration des analyseurs
-│   │   ├── semgrep.js
-│   │   ├── eslint.js
-│   │   ├── npmAudit.js
-│   │   └── trufflehog.js
+│   │   ├── semgrep.ts
+│   │   ├── eslint.ts
+│   │   ├── npmAudit.ts
+│   │   └── trufflehog.ts
 │   ├── models/              # Modèles BDD
-│   └── index.js
+│   └── index.ts
 │
-├── .env.example             # Variables d'environnement
-├── docker-compose.yml       # Lancement de tout l'environnement
-├── package.json             # Racine du monorepo
+├── design/                  # 🎨 Maquettes et assets design
+├── .gitignore
+├── README-dev.md            # Documentation technique détaillée
 └── README.md
 ```
 
@@ -65,15 +65,15 @@ SecureScan/
 
 ## 🗃️ Base de données — PostgreSQL (schéma minimal)
 
-**3 tables seulement.** Les résultats d'analyse sont stockés en JSON brut dans `scans` et parsés côté React — pas besoin d'une table par vulnérabilité. Seuls les fixes confirmés sont persistés.
+**3 tables seulement.** Les résultats d'analyse sont stockés en JSON brut dans `scans` et parsés côté React — pas besoin d'une table par vulnérabilité.
 
 ```
 ┌──────────────────────────┐
 │          users           │  ← Login / sidebar avatar
 ├──────────────────────────┤
 │ id            SERIAL     │
-│ name          VARCHAR    │  "Alice Martin"
-│ email         VARCHAR    │  login email/password
+│ name          VARCHAR    │
+│ email         VARCHAR    │
 │ password_hash TEXT       │  bcrypt
 │ github_id     VARCHAR    │  OAuth GitHub
 │ avatar_url    TEXT       │
@@ -83,50 +83,43 @@ SecureScan/
              │ 1
              ▼ N
 ┌──────────────────────────────────────────────────────┐
-│                        scans                         │  ← Home + Dashboard
+│                        scans                         │
 ├──────────────────────────────────────────────────────┤
 │ id              SERIAL                               │
 │ user_id         FK → users                           │
-│ repo_url        TEXT          "github.com/org/repo"  │
+│ repo_url        TEXT                                 │
 │ repo_name       VARCHAR                              │
-│ language        VARCHAR       "JavaScript"           │
-│ analyzers       TEXT[]        ['semgrep','eslint',…] │  ← cases cochées Home
-│ status          VARCHAR       'pending'|'running'|   │
-│                               'completed'|'failed'   │
-│ score           INT           23  (score /100)       │
-│ vuln_critical   INT           3                      │
-│ vuln_high       INT           11                     │
-│ vuln_medium     INT           21                     │
-│ vuln_low        INT           12                     │
-│ secrets_count   INT           5                      │
-│ files_total     INT           842                    │
-│ results_json    JSONB         résultats bruts de     │
-│                               tous les analyseurs    │
-│ is_favorite     BOOLEAN       étoile ⭐ sidebar       │
+│ language        VARCHAR                              │
+│ analyzers       TEXT[]                               │
+│ status          VARCHAR   'pending'|'running'|       │
+│                           'completed'|'failed'       │
+│ score           INT       (score /100)               │
+│ vuln_critical   INT                                  │
+│ vuln_high       INT                                  │
+│ vuln_medium     INT                                  │
+│ vuln_low        INT                                  │
+│ secrets_count   INT                                  │
+│ files_total     INT                                  │
+│ results_json    JSONB     résultats bruts analyseurs │
+│ is_favorite     BOOLEAN                              │
 │ created_at      TIMESTAMP                            │
 │ completed_at    TIMESTAMP                            │
 └───────────────────────┬──────────────────────────────┘
                         │ 1
                         ▼ N
 ┌──────────────────────────────────────────────────────┐
-│                    vuln_fixes                        │  ← bouton "Appliquer le fix"
+│                    vuln_fixes                        │
 ├──────────────────────────────────────────────────────┤
 │ id          SERIAL                                   │
 │ scan_id     FK → scans                               │
-│ rule_id     VARCHAR    "javascript.express.sqli"     │  clé unique du fix
-│ file_path   TEXT       "routes/api.js"               │
-│ line_start  INT        127                           │
+│ rule_id     VARCHAR                                  │
+│ file_path   TEXT                                     │
+│ line_start  INT                                      │
 │ fixed_at    TIMESTAMP                                │
 └──────────────────────────────────────────────────────┘
 ```
 
-**Pourquoi `results_json` (JSONB) ?**
-- On stocke une seule fois le résultat brut de Semgrep + ESLint + npm audit + TruffleHog
-- React filtre, trie et affiche les vulnérabilités **en mémoire** → pas besoin de 40 colonnes en base
-- Pour afficher `is_fixed`, on croise `results_json` avec la table `vuln_fixes` (lookup par `rule_id + file_path + line_start`)
-- Les rapports PDF/HTML sont **générés à la demande** depuis `results_json`, non stockés
-
-> **Résultat :** 3 tables, ~15 colonnes utiles, zéro over-engineering — et toute la maquette fonctionne.
+> Les rapports PDF/HTML sont **générés à la demande** depuis `results_json`, non stockés en base.
 
 ---
 
@@ -137,46 +130,43 @@ SecureScan/
 git clone https://github.com/wicra/SecureScan.git
 cd SecureScan
 
-# 2. Installer les dépendances (racine + sous-projets)
-npm install
-npm install --prefix client
-npm install --prefix server
+# 2. Installer les dépendances
+cd front && npm install
+cd ../server && npm install
 
 # 3. Configurer les variables d'environnement
 cp .env.example .env
 
 # 4. Lancer en développement
-npm run dev        # Lance client + server en parallèle
-```
+# Terminal 1 — backend
+cd server && npm run dev
 
-Ou avec Docker :
-
-```bash
-docker-compose up --build
+# Terminal 2 — frontend
+cd front && npm run dev
 ```
 
 ---
 
 ## 🔍 Analyseurs intégrés
 
-| Outil              | Rôle                                      |
-|--------------------|-------------------------------------------|
-| **Semgrep**        | Analyse statique (SAST), 30+ langages     |
-| **ESLint Security**| Détection de patterns dangereux en JS     |
-| **npm audit**      | Audit des dépendances Node.js             |
-| **TruffleHog**     | Détection de secrets dans l'historique Git|
-| **Bandit**         | Analyse de sécurité Python                |
+| Outil | Rôle |
+|---|---|
+| **Semgrep** | Analyse statique (SAST), 30+ langages |
+| **ESLint Security** | Détection de patterns dangereux en JS/TS |
+| **npm audit** | Audit des dépendances Node.js |
+| **TruffleHog** | Détection de secrets dans l'historique Git |
+| **Bandit** | Analyse de sécurité Python |
 
 ---
 
 ## 📊 Critères d'évaluation
 
-| Critère         | Poids |
-|-----------------|-------|
-| Technique       | 40 %  |
-| Sécurité OWASP  | 25 %  |
-| UX & Rendu      | 20 %  |
-| Travail d'équipe| 15 %  |
+| Critère | Poids |
+|---|---|
+| Technique | 40 % |
+| Sécurité OWASP | 25 % |
+| UX & Rendu | 20 % |
+| Travail d'équipe | 15 % |
 
 ---
 
@@ -185,88 +175,47 @@ docker-compose up --build
 ### Branches principales
 
 | Branche | Rôle |
-|---------|------|
-| `main`  | 🚀 **Production** — code stable, testé, prêt à présenter. Merge uniquement via PR approuvée. |
-| `dev`   | 🔧 **Développement** — branche commune d'intégration. On merge toutes les features ici avant `main`. |
+|---|---|
+| `main` | 🚀 **Production** — code stable, prêt à présenter. Merge uniquement via PR approuvée. |
+| `dev` | 🔧 **Développement** — branche d'intégration commune. Toutes les features mergent ici avant `main`. |
 
-> **Règle d'or :** on ne pousse **jamais** directement sur `main`. Toujours passer par `dev` → PR → `main`.
-
----
+> **Règle d'or :** on ne pousse **jamais** directement sur `main`.
 
 ### Branches de fonctionnalité
 
-Toutes les branches de travail partent de `dev` et suivent la convention :
-
 ```
-feature/backend/<nom-court>     ← Dev backend A & B
-feature/frontend/<nom-court>    ← Dev frontend
-fix/backend/<nom-court>         ← Correction bug backend
-fix/frontend/<nom-court>        ← Correction bug frontend
-chore/<nom-court>               ← Config, docs, refacto
+feature/backend/<nom-court>
+feature/frontend/<nom-court>
+fix/backend/<nom-court>
+fix/frontend/<nom-court>
+chore/<nom-court>
 ```
-
-**Exemples concrets pour ce projet :**
-
-```
-feature/backend/auth-login
-feature/backend/semgrep-integration
-feature/backend/scan-controller
-feature/backend/vulnerabilities-api
-feature/frontend/dashboard-chart
-feature/frontend/scan-form
-feature/frontend/results-detail
-fix/backend/scan-timeout
-chore/db-migrations
-```
-
----
 
 ### Workflow au quotidien
 
 ```bash
-# 1. Toujours partir de dev à jour
-git checkout dev
-git pull origin dev
+git checkout dev && git pull origin dev
+git checkout -b feature/backend/ma-feature
 
-# 2. Créer sa branche
-git checkout -b feature/backend/semgrep-integration
+# ... coder ...
 
-# 3. Coder, commiter régulièrement
-git add .
-git commit -m "feat(backend): add semgrep runner service"
-
-# 4. Rester à jour avec dev (rebase recommandé)
-git fetch origin
+git add . && git commit -m "feat(backend): description"
 git rebase origin/dev
-
-# 5. Pousser et ouvrir une PR vers dev
-git push -u origin feature/backend/semgrep-integration
+git push -u origin feature/backend/ma-feature
+# → ouvrir PR vers dev
 ```
-
-> Ouvrir la PR vers **`dev`**, pas vers `main`. Une fois `dev` stable et testé → PR `dev` → `main` pour la démo/soutenance.
-
----
-
-### Répartition des branches par personne
-
-| Personne | Branches |
-|----------|----------|
-| 👤 Dev Backend A | `feature/backend/auth-*`, `feature/backend/scan-*`, `fix/backend/*` |
-| 👤 Dev Backend B | `feature/backend/semgrep-*`, `feature/backend/vulnerabilities-*`, `chore/db-*` |
-| 👤 Dev Frontend  | `feature/frontend/*`, `fix/frontend/*` |
 
 ---
 
 ## 🤝 Contribuer
 
-1. Pars toujours de `dev` : `git checkout dev && git pull origin dev`
-2. Crée ta branche : `git checkout -b feature/backend/ma-fonctionnalite`
-3. Commite avec un message clair : `git commit -m "feat(backend): description"`
-4. Rebase sur `dev` avant de pusher : `git rebase origin/dev`
-5. Push et ouvre une **Pull Request vers `dev`**
-6. Fais relire par au moins 1 autre membre avant de merger
+1. Toujours partir de `dev` à jour
+2. Créer sa branche depuis `dev`
+3. Commiter avec des messages clairs (`feat:`, `fix:`, `chore:`)
+4. Rebase sur `dev` avant de pusher
+5. Ouvrir une **Pull Request vers `dev`**, jamais vers `main`
+6. Faire relire par au moins 1 autre membre
 
 ---
 
 *Hackathon IPSSI 2026 — [Page du sujet](https://biynlearning.academy/hackathon-securescan.html)*
-
