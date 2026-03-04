@@ -9,7 +9,7 @@ const validate = (schema) => {
     } catch (err) {
       return res.status(400).json({
         error: "Données invalides.",
-        details: err.errors.map((e) => ({
+        details: (err.errors || err.issues || []).map((e) => ({
           field: e.path.join("."),
           message: e.message,
         })),
