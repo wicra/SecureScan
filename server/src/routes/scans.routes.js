@@ -5,6 +5,20 @@ const { validate, scanSchema } = require("../middlewares/validate.middleware");
 
 const router = Router();
 
+// POST /api/scans/upload — Scanner un ZIP uploadé (drag-and-drop)
+// Doit être déclaré AVANT la route /:id pour éviter un conflit de paramètre
+router.post(
+  "/upload",
+  optionalAuth,
+  (req, res, next) => {
+    scansController.uploadMiddleware(req, res, (err) => {
+      if (err) return res.status(400).json({ error: err.message });
+      next();
+    });
+  },
+  scansController.uploadScan
+);
+
 // POST /api/scans — Lancer un scan
 // optionalAuth : un visiteur peut scanner, mais seul le score sera retourné
 router.post("/", optionalAuth, validate(scanSchema), scansController.createScan);
