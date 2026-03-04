@@ -6,7 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Sparkles, Check, Copy, FileText, ChevronRight } from "lucide-react";
 import { Sidebar } from "@/components/Sidebar";
 import { Badge } from "@/components/Badge";
-import { getScan, isLoggedIn, markVulnFixed } from "@/lib/api";
+import { CodeBlock } from "@/components/CodeBlock";
+import { getScan, isLoggedIn, markVulnFixed, requestAiFix, getCurrentScanId } from "@/lib/api";
 interface VulnData {
   id: number;
   tool: string;
@@ -50,6 +51,8 @@ export default function ResultsPage() {
   const [selected, setSelected] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
 
@@ -61,7 +64,7 @@ export default function ResultsPage() {
 
     const load = async () => {
       try {
-        const id = paramScanId ? parseInt(paramScanId) : null;
+        const id = paramScanId ? parseInt(paramScanId) : getCurrentScanId();
         if (!id) {
           setLoading(false);
           return;
@@ -103,6 +106,29 @@ export default function ResultsPage() {
   );
 
   const selectedVuln = vulns.find((v) => v.id === selected);
+
+  // Réinitialise l'erreur IA quand on change de vuln
+  const handleSelectVuln = useCallback((id: number) => {
+    setSelected(id);
+    setAiError(null);
+  }, []);
+
+  const handleAiFix = useCallback(async () => {
+    if (!scan || !selectedVuln) return;
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const { fixSuggestion } = await requestAiFix(scan.id, selectedVuln.id);
+      // Met à jour la vuln localement sans recharger la page
+      setVulns((prev) =>
+        prev.map((v) => (v.id === selectedVuln.id ? { ...v, fixSuggestion } : v))
+      );
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : "Erreur lors de la génération du fix IA");
+    } finally {
+      setAiLoading(false);
+    }
+  }, [scan, selectedVuln]);
 
   const handleCopy = useCallback(() => {
     if (!selectedVuln?.fixSuggestion) return;
@@ -178,7 +204,7 @@ export default function ResultsPage() {
                     role="option"
                     tabIndex={selected === v.id ? 0 : -1}
                     aria-selected={selected === v.id}
-                    onClick={() => setSelected(v.id)}
+                    onClick={() => handleSelectVuln(v.id)}
                     onKeyDown={(e) => handleKeyDown(e, v.id)}
                     className={`p-3.5 px-5 border-b border-(--color-border) cursor-pointer transition-colors hover:bg-(--color-surface2) focus:outline-none ${
                       selected === v.id ? "bg-[rgba(59,130,246,0.08)] border-l-2 border-l-(--color-accent)" : ""
@@ -226,41 +252,93 @@ export default function ResultsPage() {
                       <div className="text-xs uppercase tracking-wider text-(--color-text3) mb-2.5">
                         Code vulnérable — {selectedVuln.filePath}{selectedVuln.lineStart ? `:${selectedVuln.lineStart}` : ""}
                       </div>
-                      <div className="bg-(--color-bg) border border-(--color-border) rounded-lg p-4 font-(--font-space-mono) text-xs leading-relaxed overflow-x-auto">
-                        <pre className="text-(--color-red) whitespace-pre-wrap">{selectedVuln.codeSnippet}</pre>
-                      </div>
+                      <CodeBlock
+                        code={selectedVuln.codeSnippet}
+                        filePath={selectedVuln.filePath}
+                        startingLineNumber={selectedVuln.lineStart ?? 1}
+                      />
                     </div>
                   )}
 
-                  {/* Correction suggérée */}
-                  {selectedVuln.fixSuggestion && (
-                    <div className="mb-6">
-                      <div className="text-xs uppercase tracking-wider text-(--color-text3) mb-2.5 flex items-center gap-2">
-                        <Sparkles size={14} strokeWidth={2} />
-                        Correction suggérée
-                      </div>
-                      <div className="bg-(--color-bg) border border-(--color-border) rounded-lg p-4 font-(--font-space-mono) text-xs leading-relaxed overflow-x-auto">
-                        <pre className="text-(--color-green) whitespace-pre-wrap">{selectedVuln.fixSuggestion}</pre>
-                      </div>
-                      <div className="flex flex-wrap gap-2.5 mt-4">
+                  {/* Correction suggérée / Bouton Fix IA */}
+                  <div className="mb-6">
+                    {selectedVuln.fixSuggestion ? (
+                      <>
+                        <div className="text-xs uppercase tracking-wider text-(--color-text3) mb-2.5 flex items-center gap-2">
+                          <Sparkles size={14} strokeWidth={2} />
+                          Correction IA suggérée
+                        </div>
+                        <CodeBlock
+                          code={selectedVuln.fixSuggestion}
+                          filePath={selectedVuln.filePath}
+                          startingLineNumber={selectedVuln.lineStart ?? 1}
+                        />
+                        <div className="flex flex-wrap gap-2.5 mt-4">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void navigator.clipboard.writeText(selectedVuln.fixSuggestion!);
+                              setCopied(true);
+                              setTimeout(() => setCopied(false), 2000);
+                            }}
+                            className="inline-flex items-center gap-2 py-2.5 px-5 rounded-lg font-semibold text-sm border border-(--color-border2) text-(--color-text2) hover:bg-(--color-surface2) transition-colors"
+                          >
+                            {copied ? <Check size={16} strokeWidth={2} /> : <Copy size={16} strokeWidth={2} />}
+                            {copied ? "Copié !" : "Copier"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!scan || !selectedVuln) return;
+                              try {
+                                await markVulnFixed(scan.id, selectedVuln.id);
+                                setVulns((prev) => prev.map((v) => v.id === selectedVuln.id ? { ...v, isFixed: true } : v));
+                              } catch (err) { console.error(err); }
+                            }}
+                            disabled={selectedVuln.isFixed}
+                            className={`inline-flex items-center gap-2 py-2.5 px-5 rounded-lg font-semibold text-sm transition-opacity ${selectedVuln.isFixed ? "bg-(--color-surface2) text-(--color-text3) cursor-default" : "bg-(--color-green) text-black hover:opacity-90"}`}
+                          >
+                            <Check size={18} strokeWidth={2} />
+                            {selectedVuln.isFixed ? "Corrigé ✓" : "Appliquer"}
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      /* ── Pas encore de fix : bouton pour générer via IA ── */
+                      <>
+                        <div className="text-xs uppercase tracking-wider text-(--color-text3) mb-3 flex items-center gap-2">
+                          <Sparkles size={14} strokeWidth={2} />
+                          Correction IA
+                        </div>
+                        {aiError && (
+                          <div className="mb-3 text-xs text-(--color-red) bg-[rgba(239,68,68,0.08)] border border-[rgba(239,68,68,0.2)] rounded-lg px-4 py-3">
+                            {aiError}
+                          </div>
+                        )}
                         <button
-                        type="button"
-                        onClick={async () => {
-                          if (!scan || !selectedVuln) return;
-                          try {
-                            await markVulnFixed(scan.id, selectedVuln.id);
-                            setVulns(vulns.map(v => v.id === selectedVuln.id ? { ...v, isFixed: true } : v));
-                          } catch (err) { console.error(err); }
-                        }}
-                        disabled={selectedVuln.isFixed}
-                        className={`inline-flex items-center gap-2 py-2.5 px-5 rounded-lg font-semibold text-sm transition-opacity ${selectedVuln.isFixed ? "bg-(--color-surface2) text-(--color-text3) cursor-default" : "bg-(--color-green) text-black hover:opacity-90"}`}
-                      >
-                        <Check size={18} strokeWidth={2} />
-                        {selectedVuln.isFixed ? "Corrigé ✓" : "Appliquer"}
-                      </button>
-                      </div>
-                    </div>
-                  )}
+                          type="button"
+                          onClick={handleAiFix}
+                          disabled={aiLoading}
+                          className="inline-flex items-center gap-2.5 py-3 px-6 rounded-lg bg-(--color-accent) text-white font-semibold text-sm hover:bg-(--color-accent2) transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          {aiLoading ? (
+                            <>
+                              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+                              Génération en cours…
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles size={16} strokeWidth={2} />
+                              Générer un fix IA
+                            </>
+                          )}
+                        </button>
+                        <p className="text-xs text-(--color-text3) mt-2.5">
+                          Le modèle analysera le code vulnérable et proposera une correction.
+                        </p>
+                      </>
+                    )}
+                  </div>
 
                   {/* Informations */}
                   <div>

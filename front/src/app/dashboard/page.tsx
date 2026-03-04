@@ -189,7 +189,14 @@ export default function DashboardPage() {
 
         <div className="bg-[rgba(17,19,24,0.92)] border border-(--color-border) rounded-xl overflow-hidden mb-6 backdrop-blur-sm">
           <div className="p-4 px-6 border-b border-(--color-border) flex items-center justify-between">
-            <div className="text-sm font-semibold">Vulnérabilités détectées</div>
+            <div className="text-sm font-semibold">
+              Vulnérabilités détectées
+              {severityFilter && (
+                <span className="ml-2 text-(--color-text3) font-normal text-xs">
+                  {filteredVulns.length} affichées
+                </span>
+              )}
+            </div>
             <div className="flex gap-2">
               <button onClick={() => setSeverityFilter(null)} className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${!severityFilter ? "border-(--color-accent) bg-[rgba(59,130,246,0.12)] text-(--color-accent)" : "border-(--color-border2) bg-(--color-bg) text-(--color-text2)"}`}>Tous ({scan.vulnTotal})</button>
               {scan.vulnCritical > 0 && <button onClick={() => setSeverityFilter(severityFilter === "critical" ? null : "critical")} className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs border transition-colors ${severityFilter === "critical" ? "border-(--color-red) bg-[rgba(239,68,68,0.12)] text-(--color-red)" : "border-(--color-border2) bg-(--color-bg) text-(--color-text2)"}`}><Circle size={8} fill="currentColor" className="text-(--color-red)" /> Critique ({scan.vulnCritical})</button>}
@@ -197,33 +204,38 @@ export default function DashboardPage() {
               {scan.vulnMedium > 0 && <button onClick={() => setSeverityFilter(severityFilter === "medium" ? null : "medium")} className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs border transition-colors ${severityFilter === "medium" ? "border-(--color-yellow) bg-[rgba(234,179,8,0.12)] text-(--color-yellow)" : "border-(--color-border2) bg-(--color-bg) text-(--color-text2)"}`}><Circle size={8} fill="currentColor" className="text-(--color-yellow)" /> Moyenne ({scan.vulnMedium})</button>}
             </div>
           </div>
-          <table className="w-full border-collapse">
-            <thead><tr className="bg-(--color-bg)">
-              <th className="py-2.5 px-5 text-left text-[11px] font-medium text-(--color-text3) uppercase">Sévérité</th>
-              <th className="py-2.5 px-5 text-left text-[11px] font-medium text-(--color-text3) uppercase">Description</th>
-              <th className="py-2.5 px-5 text-left text-[11px] font-medium text-(--color-text3) uppercase">Fichier</th>
-              <th className="py-2.5 px-5 text-left text-[11px] font-medium text-(--color-text3) uppercase">OWASP</th>
-              <th className="py-2.5 px-5 text-left text-[11px] font-medium text-(--color-text3) uppercase">Outil</th>
-              <th className="py-2.5 px-5 text-left text-[11px] font-medium text-(--color-text3) uppercase">Action</th>
-            </tr></thead>
-            <tbody>
-              {filteredVulns.slice(0, 30).map((v) => (
-                <tr key={v.id} className="border-t border-(--color-border) cursor-pointer hover:bg-(--color-surface2)" onClick={() => router.push(`/results?scanId=${scan.id}&vulnId=${v.id}`)}>
-                  <td className="py-3.5 px-5 text-[13px]"><Badge severity={v.severity as "critical" | "high" | "medium" | "low"}>{v.severity.toUpperCase()}</Badge></td>
-                  <td className="py-3.5 px-5 text-[13px]">{v.title}</td>
-                  <td className="py-3.5 px-5"><span className="font-(--font-space-mono) text-xs text-(--color-text2)">{v.filePath}{v.lineStart ? `:${v.lineStart}` : ""}</span></td>
-                  <td className="py-3.5 px-5"><Badge severity="owasp">{v.owaspCategory || "—"}</Badge></td>
-                  <td className="py-3.5 px-5 text-xs text-(--color-text3)">{v.tool}</td>
-                  <td className="py-3.5 px-5">
-                    <Link href={`/results?scanId=${scan.id}&vulnId=${v.id}`} className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded text-xs font-semibold bg-(--color-accent) text-white" onClick={(e) => e.stopPropagation()}>
-                      <Sparkles size={12} strokeWidth={2} /> Fix IA
-                    </Link>
-                  </td>
+          {/* Wrapper scrollable — toutes les vulns, header sticky */}
+          <div className="overflow-y-auto max-h-[520px]">
+            <table className="w-full border-collapse">
+              <thead className="sticky top-0 z-10 bg-(--color-bg)">
+                <tr>
+                  <th className="py-2.5 px-5 text-left text-[11px] font-medium text-(--color-text3) uppercase">Sévérité</th>
+                  <th className="py-2.5 px-5 text-left text-[11px] font-medium text-(--color-text3) uppercase">Description</th>
+                  <th className="py-2.5 px-5 text-left text-[11px] font-medium text-(--color-text3) uppercase">Fichier</th>
+                  <th className="py-2.5 px-5 text-left text-[11px] font-medium text-(--color-text3) uppercase">OWASP</th>
+                  <th className="py-2.5 px-5 text-left text-[11px] font-medium text-(--color-text3) uppercase">Outil</th>
+                  <th className="py-2.5 px-5 text-left text-[11px] font-medium text-(--color-text3) uppercase">Action</th>
                 </tr>
-              ))}
-              {filteredVulns.length === 0 && (<tr><td colSpan={6} className="py-8 text-center text-(--color-text3)">Aucune vulnérabilité trouvée.</td></tr>)}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredVulns.map((v) => (
+                  <tr key={v.id} className="border-t border-(--color-border) cursor-pointer hover:bg-(--color-surface2)" onClick={() => router.push(`/results?scanId=${scan.id}&vulnId=${v.id}`)}>
+                    <td className="py-3.5 px-5 text-[13px]"><Badge severity={v.severity as "critical" | "high" | "medium" | "low"}>{v.severity.toUpperCase()}</Badge></td>
+                    <td className="py-3.5 px-5 text-[13px]">{v.title}</td>
+                    <td className="py-3.5 px-5"><span className="font-(--font-space-mono) text-xs text-(--color-text2)">{v.filePath}{v.lineStart ? `:${v.lineStart}` : ""}</span></td>
+                    <td className="py-3.5 px-5"><Badge severity="owasp">{v.owaspCategory || "—"}</Badge></td>
+                    <td className="py-3.5 px-5 text-xs text-(--color-text3)">{v.tool}</td>
+                    <td className="py-3.5 px-5">
+                      <Link href={`/results?scanId=${scan.id}&vulnId=${v.id}`} className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded text-xs font-semibold bg-(--color-accent) text-white" onClick={(e) => e.stopPropagation()}>
+                        <Sparkles size={12} strokeWidth={2} /> Fix IA
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+                {filteredVulns.length === 0 && (<tr><td colSpan={6} className="py-8 text-center text-(--color-text3)">Aucune vulnérabilité trouvée.</td></tr>)}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <div className="text-base font-semibold mb-4">Scans récents</div>

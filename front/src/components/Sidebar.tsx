@@ -7,16 +7,6 @@ import { Home, BarChart3, Search, FileText, Clock, Star, Power } from "lucide-re
 import { Logo } from "./Logo";
 import { logout, getStoredUser, getScans, getCurrentScanId } from "@/lib/api";
 
-
-const currentScanId = getCurrentScanId();
-
-const navItems = [
-  { href: "/scan", Icon: Home, label: "Nouveau scan" },
-  { href: "/dashboard", Icon: BarChart3, label: "Dashboard" },
-  { href: `/results${currentScanId ? `?scanId=${currentScanId}` : ""}`, Icon: Search, label: "Résultats" },
-  { href: `/report${currentScanId ? `?scanId=${currentScanId}` : ""}`, Icon: FileText, label: "Rapports" },
-];
-
 interface MiniScan { id: number; repoName: string; score: number; isFavorite: boolean; }
 
 export function Sidebar() {
@@ -26,12 +16,22 @@ export function Sidebar() {
   const [recentScans, setRecentScans] = useState<MiniScan[]>([]);
   const [showRecent, setShowRecent] = useState(false);
   const [showFavs, setShowFavs] = useState(false);
+  const [currentScanId, setCurrentScanIdState] = useState<number | null>(null);
 
   useEffect(() => {
     const u = getStoredUser();
     if (u) setUser(u);
+    // Lit le scanId courant au montage (mis à jour à chaque navigation via setCurrentScanId dans dashboard)
+    setCurrentScanIdState(getCurrentScanId());
     getScans().then(scans => setRecentScans((scans || []).slice(0, 5))).catch(() => {});
-  }, []);
+  }, [pathname]); // re-exécute à chaque changement de page pour capter le scan courant mis à jour
+
+  const navItems = [
+    { href: "/scan", Icon: Home, label: "Nouveau scan" },
+    { href: "/dashboard", Icon: BarChart3, label: "Dashboard" },
+    { href: `/results${currentScanId ? `?scanId=${currentScanId}` : ""}`, Icon: Search, label: "Résultats" },
+    { href: `/report${currentScanId ? `?scanId=${currentScanId}` : ""}`, Icon: FileText, label: "Rapports" },
+  ];
 
   const handleLogout = () => { logout(); router.push("/login"); };
   const initial = user?.name?.charAt(0)?.toUpperCase() || "U";

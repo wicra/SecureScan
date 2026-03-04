@@ -1,8 +1,22 @@
 
 // IMPORTS DES MODULES DE BASE (GESTION DES CHEMINS, ENV ET PROCESSUS)
 const path = require('path');
+const fs   = require('fs');
 const { toolsEnv }   = require('../config/tools');
 const { spawnAsync } = require('../utils/spawn');
+
+// LIT LES LIGNES AUTOUR D'UNE POSITION DANS LE FICHIER (contexte élargi pour le LLM)
+function extractCodeContext(filePath, lineStart, lineEnd, fallback) {
+  if (!filePath || !lineStart) return fallback || null;
+  try {
+    const lines  = fs.readFileSync(filePath, 'utf8').split('\n');
+    const from   = Math.max(0, lineStart - 1 - 4);           // 4 lignes avant
+    const to     = Math.min(lines.length, (lineEnd || lineStart) + 4); // 4 lignes après
+    return lines.slice(from, to).join('\n');
+  } catch {
+    return fallback || null; // fichier inaccessible
+  }
+}
 
 
 // TABLE DE CORRESPONDANCE ENTRE LES NIVEAUX SEMGREP ET SECURESCAN
@@ -68,7 +82,7 @@ async function runSemgrep(repoPath) {
       filePath:      r.path             || null,
       lineStart:     r.start?.line      || null,
       lineEnd:       r.end?.line        || null,
-      codeSnippet:   extra.lines        || null,
+      codeSnippet:   extractCodeContext(r.path, r.start?.line, r.end?.line, extra.lines),
       fixSuggestion: extra.fix          || null,
       cvssScore:     metadata.cvss      || null,
       owaspCategory,
