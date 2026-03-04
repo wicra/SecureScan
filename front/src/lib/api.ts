@@ -82,6 +82,26 @@ export async function createScan(repoUrl: string) {
   return data;
 }
 
+// Scan via upload ZIP (drag-and-drop ou sélection de fichier)
+export async function uploadScanFile(file: File) {
+  const token = getToken();
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const reqHeaders: HeadersInit = {};
+  if (token) reqHeaders["Authorization"] = `Bearer ${token}`;
+  // NE PAS mettre Content-Type : le navigateur le pose automatiquement avec le boundary multipart
+
+  const res = await fetch(`${API_URL}/scans/upload`, {
+    method: "POST",
+    headers: reqHeaders,
+    body: formData,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Erreur lors du scan upload");
+  return data;
+}
+
 export async function getScan(scanId: number) {
   const res = await fetch(`${API_URL}/scans/${scanId}`, {
     headers: headers(true),
