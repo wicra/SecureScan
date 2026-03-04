@@ -1,0 +1,7 @@
+# Dossiers temporaires de scan (repos clonés pendant l'analyse)
+tmp/
+server/tmp/
+
+# Divers OS
+.DS_Store
+Thumbs.db

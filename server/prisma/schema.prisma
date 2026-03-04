@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// TABLE : users
+// ─────────────────────────────────────────────
+model User {
+  id           Int      @id @default(autoincrement())
+  name         String
+  email        String   @unique
+  passwordHash String?                          // null si OAuth GitHub
+  githubId     String?  @unique
+  avatarUrl    String?
+  role         String   @default("analyste")   // analyste | admin
+  createdAt    DateTime @default(now())
+
+  scans        Scan[]
+
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────
+// TABLE : scans
+// ─────────────────────────────────────────────
+model Scan {
+  id            Int       @id @default(autoincrement())
+  userId        Int?
+  user          User?     @relation(fields: [userId], references: [id])
+
+  repoUrl       String
+  repoName      String?
+  language      String?
+  branch        String    @default("main")
+
+  status        String    @default("pending")  // pending | running | completed | failed
+
+  // Stats pré-calculées (affichées dans le dashboard)
+  score         Int       @default(0)          // 0-100
+  vulnTotal     Int       @default(0)
+  vulnCritical  Int       @default(0)
+  vulnHigh      Int       @default(0)
+  vulnMedium    Int       @default(0)
+  vulnLow       Int       @default(0)
+  secretsCount  Int       @default(0)
+  filesTotal    Int       @default(0)
+  filesImpacted Int       @default(0)
+
+  isFavorite    Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  completedAt   DateTime?
+
+  vulnerabilities Vulnerability[]
+  reports         Report[]
+
+  @@map("scans")
+}
+
+// ─────────────────────────────────────────────
+// TABLE : vulnerabilities
+// ─────────────────────────────────────────────
+model Vulnerability {
+  id            Int      @id @default(autoincrement())
+  scanId        Int
+  scan          Scan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
+
+  tool          String   // semgrep | eslint | npm_audit | trufflehog
+  title         String   @db.VarChar(500)
+  description   String?  @db.Text
+  severity      String   // critical | high | medium | low
+  owaspCategory String?  // A05:2025, A01:2025…
+  filePath      String?  @db.VarChar(1000)
+  lineStart     Int?
+  lineEnd       Int?
+  ruleId        String?  @db.VarChar(500) // "javascript.express.sqli"
+  codeSnippet   String?  @db.Text
+  fixSuggestion String?  @db.Text
+  cvssScore     Decimal? @db.Decimal(3, 1)
+  isFixed       Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  @@map("vulnerabilities")
+}
+
+// ─────────────────────────────────────────────
+// TABLE : reports
+// ─────────────────────────────────────────────
+model Report {
+  id        Int      @id @default(autoincrement())
+  scanId    Int
+  scan      Scan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
+
+  format    String   // pdf | html
+  language  String   @default("fr")  // fr | en
+  fileUrl   String?
+  createdAt DateTime @default(now())
+
+  @@map("reports")
+}

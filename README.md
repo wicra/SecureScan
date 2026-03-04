@@ -63,89 +63,70 @@ SecureScan/
 
 ---
 
-## 🗃️ Base de données — PostgreSQL
+## 🗃️ Base de données — PostgreSQL (schéma minimal)
 
-5 tables, déduites directement des écrans de la maquette.
+**3 tables seulement.** Les résultats d'analyse sont stockés en JSON brut dans `scans` et parsés côté React — pas besoin d'une table par vulnérabilité. Seuls les fixes confirmés sont persistés.
 
 ```
-┌─────────────────────┐
-│        users        │  ← Page Login + sidebar avatar
-├─────────────────────┤
-│ id          SERIAL  │
-│ name        VARCHAR │  "Alice Martin"
-│ email       VARCHAR │  utilisé au login
-│ password_hash TEXT  │  bcrypt
-│ github_id   VARCHAR │  OAuth "Continuer avec GitHub"
-│ avatar_url  TEXT    │
-│ role        VARCHAR │  'analyste' | 'admin'
-│ created_at  TIMESTAMP
-└────────┬────────────┘
-         │ 1
-         │
-         ▼ N
-┌─────────────────────────────┐
-│           scans             │  ← Page Home (liste) + Dashboard header
-├─────────────────────────────┤
-│ id              SERIAL      │
-│ user_id         FK → users  │
-│ repo_url        TEXT        │  "github.com/juice-shop/juice-shop"
-│ repo_name       VARCHAR     │
-│ language        VARCHAR     │  "JavaScript", "TypeScript/React"
-│ branch          VARCHAR     │  "main"
-│ status          VARCHAR     │  'pending'|'running'|'completed'|'failed'
-│ score           INT         │  23 /100  (score global dashboard)
-│ vuln_total      INT         │  47
-│ vuln_critical   INT         │  3
-│ vuln_high       INT         │  11
-│ vuln_medium     INT         │  21
-│ vuln_low        INT         │  12
-│ secrets_count   INT         │  5  (stat "Secrets détectés")
-│ files_total     INT         │  842 (stat "Fichiers analysés")
-│ files_impacted  INT         │  127
-│ is_favorite     BOOLEAN     │  étoile "Favoris" dans sidebar
-│ created_at      TIMESTAMP   │
-│ completed_at    TIMESTAMP   │
-└──────┬──────────────────────┘
-       │ 1                          │ 1
-       ▼ N                          ▼ N
-┌──────────────────────┐   ┌─────────────────────────────────┐
-│   scan_analyzers     │   │        vulnerabilities          │
-├──────────────────────┤   ├─────────────────────────────────┤
-│ id        SERIAL     │   │ id            SERIAL            │
-│ scan_id   FK → scans │   │ scan_id       FK → scans        │
-│ analyzer  VARCHAR    │   │ tool          VARCHAR           │ 'semgrep'|'eslint'|
-│  (semgrep, eslint,   │   │                                 │ 'npm_audit'|'trufflehog'
-│   npm_audit,         │   │ title         VARCHAR           │ "SQL Injection…"
-│   trufflehog,        │   │ description   TEXT              │ texte long
-│   bandit,            │   │ severity      VARCHAR           │ 'critical'|'high'|
-│   composer_audit)    │   │                                 │ 'medium'|'low'
-│ enabled   BOOLEAN    │   │ owasp_category VARCHAR          │ 'A05:2025'
-│ status    VARCHAR    │   │ file_path     TEXT              │ "routes/api.js"
-│ vuln_count INT       │   │ line_start    INT               │ 127
-│ started_at TIMESTAMP │   │ line_end      INT               │
-│ completed_at TIMESTAMP   │ rule_id       VARCHAR           │ "javascript.express.sqli"
-└──────────────────────┘   │ code_snippet  TEXT              │ extrait vulnérable
-                           │ fix_suggestion TEXT             │ code corrigé (IA)
-                           │ cvss_score    DECIMAL(3,1)      │ 9.8
-                           │ is_fixed      BOOLEAN           │ bouton "Appliquer le fix"
-                           │ created_at    TIMESTAMP         │
-                           └──────────┬──────────────────────┘
-                                      │ N
-                                      │
-                                      ▼ 1
-                           ┌──────────────────────┐
-                           │        reports       │  ← Page Rapport
-                           ├──────────────────────┤
-                           │ id         SERIAL    │
-                           │ scan_id    FK → scans│
-                           │ format     VARCHAR   │  'pdf' | 'html'
-                           │ language   VARCHAR   │  'fr' | 'en'
-                           │ file_url   TEXT      │  chemin du fichier généré
-                           │ created_at TIMESTAMP │
-                           └──────────────────────┘
+┌──────────────────────────┐
+│          users           │  ← Login / sidebar avatar
+├──────────────────────────┤
+│ id            SERIAL     │
+│ name          VARCHAR    │  "Alice Martin"
+│ email         VARCHAR    │  login email/password
+│ password_hash TEXT       │  bcrypt
+│ github_id     VARCHAR    │  OAuth GitHub
+│ avatar_url    TEXT       │
+│ role          VARCHAR    │  'analyste' | 'admin'
+│ created_at    TIMESTAMP  │
+└────────────┬─────────────┘
+             │ 1
+             ▼ N
+┌──────────────────────────────────────────────────────┐
+│                        scans                         │  ← Home + Dashboard
+├──────────────────────────────────────────────────────┤
+│ id              SERIAL                               │
+│ user_id         FK → users                           │
+│ repo_url        TEXT          "github.com/org/repo"  │
+│ repo_name       VARCHAR                              │
+│ language        VARCHAR       "JavaScript"           │
+│ analyzers       TEXT[]        ['semgrep','eslint',…] │  ← cases cochées Home
+│ status          VARCHAR       'pending'|'running'|   │
+│                               'completed'|'failed'   │
+│ score           INT           23  (score /100)       │
+│ vuln_critical   INT           3                      │
+│ vuln_high       INT           11                     │
+│ vuln_medium     INT           21                     │
+│ vuln_low        INT           12                     │
+│ secrets_count   INT           5                      │
+│ files_total     INT           842                    │
+│ results_json    JSONB         résultats bruts de     │
+│                               tous les analyseurs    │
+│ is_favorite     BOOLEAN       étoile ⭐ sidebar       │
+│ created_at      TIMESTAMP                            │
+│ completed_at    TIMESTAMP                            │
+└───────────────────────┬──────────────────────────────┘
+                        │ 1
+                        ▼ N
+┌──────────────────────────────────────────────────────┐
+│                    vuln_fixes                        │  ← bouton "Appliquer le fix"
+├──────────────────────────────────────────────────────┤
+│ id          SERIAL                                   │
+│ scan_id     FK → scans                               │
+│ rule_id     VARCHAR    "javascript.express.sqli"     │  clé unique du fix
+│ file_path   TEXT       "routes/api.js"               │
+│ line_start  INT        127                           │
+│ fixed_at    TIMESTAMP                                │
+└──────────────────────────────────────────────────────┘
 ```
 
-> **Note :** `scan_analyzers` stocke quels outils ont été cochés sur la page **Home** (Semgrep ✓, ESLint ✓, npm audit ✓, TruffleHog ✓, Bandit ☐, Composer ☐) et leurs résultats individuels.
+**Pourquoi `results_json` (JSONB) ?**
+- On stocke une seule fois le résultat brut de Semgrep + ESLint + npm audit + TruffleHog
+- React filtre, trie et affiche les vulnérabilités **en mémoire** → pas besoin de 40 colonnes en base
+- Pour afficher `is_fixed`, on croise `results_json` avec la table `vuln_fixes` (lookup par `rule_id + file_path + line_start`)
+- Les rapports PDF/HTML sont **générés à la demande** depuis `results_json`, non stockés
+
+> **Résultat :** 3 tables, ~15 colonnes utiles, zéro over-engineering — et toute la maquette fonctionne.
 
 ---
 

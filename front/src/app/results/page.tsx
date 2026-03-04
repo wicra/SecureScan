@@ -1,31 +1,88 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Sparkles, Check, Copy, FileText, ChevronRight } from "lucide-react";
 import { Sidebar } from "@/components/Sidebar";
 import { Badge } from "@/components/Badge";
+import { getScan, isLoggedIn, markVulnFixed } from "@/lib/api";
+interface VulnData {
+  id: number;
+  tool: string;
+  title: string;
+  description: string | null;
+  severity: string;
+  owaspCategory: string | null;
+  filePath: string | null;
+  lineStart: number | null;
+  lineEnd: number | null;
+  ruleId: string | null;
+  codeSnippet: string | null;
+  fixSuggestion: string | null;
+  cvssScore: number | null;
+  isFixed: boolean;
+}
 
-const vulns = [
-  { id: 1, severity: "critical" as const, title: "SQL Injection", file: "routes/api.js · ligne 127", owasp: "A05:2025", tool: "Semgrep" },
-  { id: 2, severity: "critical" as const, title: "Clé API exposée", file: "config/aws.js · ligne 8", owasp: "A02:2025", tool: "TruffleHog" },
-  { id: 3, severity: "critical" as const, title: "eval() dangereux", file: "lib/utils.js · ligne 45", owasp: "A05:2025", tool: "ESLint" },
-  { id: 4, severity: "high" as const, title: "XSS innerHTML", file: "frontend/app.js · ligne 203", owasp: "A05:2025", tool: "Semgrep" },
-  { id: 5, severity: "high" as const, title: "lodash CVE-2021-23337", file: "package.json", owasp: "A03:2025", tool: "npm audit" },
-  { id: 6, severity: "medium" as const, title: "CSRF manquant", file: "routes/auth.js · ligne 67", owasp: "A01:2025", tool: "Semgrep" },
-];
+interface ScanData {
+  id: number;
+  repoUrl: string;
+  repoName: string;
+  vulnerabilities: VulnData[];
+  vulnTotal: number;
+}
 
 const severityLabel: Record<string, string> = {
   critical: "CRITIQUE",
   high: "HAUTE",
   medium: "MOYENNE",
+  low: "FAIBLE",
 };
 
 export default function ResultsPage() {
-  const [selected, setSelected] = useState(1);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const paramScanId = searchParams.get("scanId");
+  const paramVulnId = searchParams.get("vulnId");
+
+  const [scan, setScan] = useState<ScanData | null>(null);
+  const [vulns, setVulns] = useState<VulnData[]>([]);
+  const [selected, setSelected] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  useEffect(() => {
+    if (!isLoggedIn()) {
+      router.push("/login");
+      return;
+    }
+
+    const load = async () => {
+      try {
+        const id = paramScanId ? parseInt(paramScanId) : null;
+        if (!id) {
+          setLoading(false);
+          return;
+        }
+
+        const data = await getScan(id);
+        setScan(data);
+        const v = data.vulnerabilities || [];
+        setVulns(v);
+
+        // Si un vulnId est passé en param, sélectionner cette vuln
+        const targetVuln = paramVulnId ? parseInt(paramVulnId) : v[0]?.id;
+        if (targetVuln) setSelected(targetVuln);
+      } catch (err) {
+        console.error("Erreur:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [paramScanId, paramVulnId, router]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent, id: number) => {
@@ -42,17 +99,40 @@ export default function ResultsPage() {
         itemRefs.current[nextIdx]?.focus();
       }
     },
-    [selected],
+    [selected, vulns],
   );
 
+  const selectedVuln = vulns.find((v) => v.id === selected);
+
   const handleCopy = useCallback(() => {
-    const fixCode = `const query = 'SELECT * FROM users WHERE id = ?';
-const result = await db.query(query, [req.query.id]);`;
-    void navigator.clipboard.writeText(fixCode).then(() => {
+    if (!selectedVuln?.fixSuggestion) return;
+    void navigator.clipboard.writeText(selectedVuln.fixSuggestion).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
-  }, []);
+  }, [selectedVuln]);
+
+  if (loading) {
+    return (
+      <div className="relative z-10">
+        <Sidebar />
+        <main className="ml-[220px] p-10 px-12">
+          <div className="text-(--color-text2)">Chargement...</div>
+        </main>
+      </div>
+    );
+  }
+
+  if (!scan || vulns.length === 0) {
+    return (
+      <div className="relative z-10">
+        <Sidebar />
+        <main className="ml-[220px] p-10 px-12">
+          <div className="text-(--color-text2)">Aucune vulnérabilité à afficher.</div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="relative z-10">
@@ -60,7 +140,7 @@ const result = await db.query(query, [req.query.id]);`;
       <main className="ml-[220px] min-w-0 p-6 sm:p-10 sm:px-12">
         <header className="mb-6 sm:mb-8">
           <nav className="flex items-center gap-2 text-sm text-(--color-text3) mb-3" aria-label="Fil d'Ariane">
-            <Link href="/dashboard" className="hover:text-(--color-text2) transition-colors">
+            <Link href={`/dashboard?scanId=${scan.id}`} className="hover:text-(--color-text2) transition-colors">
               Dashboard
             </Link>
             <ChevronRight size={14} strokeWidth={2} className="shrink-0" aria-hidden />
@@ -70,12 +150,12 @@ const result = await db.query(query, [req.query.id]);`;
             <div>
               <h1 className="text-[24px] sm:text-[28px] font-semibold mb-1.5">Résultats détaillés</h1>
               <p className="text-[14px] sm:text-[15px] text-(--color-text2)">
-                47 vulnérabilités · github.com/juice-shop/juice-shop
+                {scan.vulnTotal} vulnérabilités · {scan.repoName || scan.repoUrl}
               </p>
             </div>
             <Link
               href="/report"
-              className="inline-flex items-center gap-2 py-2.5 px-5 rounded-lg border border-(--color-border2) text-(--color-text) font-semibold text-sm hover:bg-(--color-surface2) transition-colors w-fit focus-visible:ring-2 focus-visible:ring-(--color-accent) focus-visible:ring-offset-2 focus-visible:ring-offset-(--color-bg)"
+              className="inline-flex items-center gap-2 py-2.5 px-5 rounded-lg border border-(--color-border2) text-(--color-text) font-semibold text-sm hover:bg-(--color-surface2) transition-colors w-fit"
             >
               <FileText size={18} strokeWidth={2} aria-hidden />
               Voir le rapport complet
@@ -84,13 +164,11 @@ const result = await db.query(query, [req.query.id]);`;
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-5">
-          <aside
-            className="lg:min-w-0"
-            aria-label="Liste des vulnérabilités"
-          >
+          {/* Liste des vulnérabilités */}
+          <aside className="lg:min-w-0" aria-label="Liste des vulnérabilités">
             <div className="bg-[rgba(17,19,24,0.92)] border border-(--color-border) rounded-xl overflow-hidden backdrop-blur">
               <div className="p-4 px-5 border-b border-(--color-border) text-[13px] font-semibold">
-                47 vulnérabilités
+                {vulns.length} vulnérabilités
               </div>
               <div role="listbox" aria-label="Sélectionner une vulnérabilité" className="max-h-[420px] overflow-y-auto">
                 {vulns.map((v, idx) => (
@@ -102,17 +180,17 @@ const result = await db.query(query, [req.query.id]);`;
                     aria-selected={selected === v.id}
                     onClick={() => setSelected(v.id)}
                     onKeyDown={(e) => handleKeyDown(e, v.id)}
-                    className={`p-3.5 px-5 border-b border-(--color-border) cursor-pointer transition-colors hover:bg-(--color-surface2) focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-accent) focus-visible:ring-inset ${
+                    className={`p-3.5 px-5 border-b border-(--color-border) cursor-pointer transition-colors hover:bg-(--color-surface2) focus:outline-none ${
                       selected === v.id ? "bg-[rgba(59,130,246,0.08)] border-l-2 border-l-(--color-accent)" : ""
                     }`}
                   >
                     <div className="flex items-center gap-2 mb-1">
-                      <Badge severity={v.severity}>{severityLabel[v.severity]}</Badge>
+                      <Badge severity={v.severity as "critical" | "high" | "medium" | "low"}>{severityLabel[v.severity] || v.severity.toUpperCase()}</Badge>
                       <span className="text-[13px] font-medium flex-1 truncate">{v.title}</span>
                     </div>
-                    <div className="text-[11px] font-(--font-space-mono) text-(--color-text3) truncate">{v.file}</div>
+                    <div className="text-[11px] font-(--font-space-mono) text-(--color-text3) truncate">{v.filePath}{v.lineStart ? ` · ligne ${v.lineStart}` : ""}</div>
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                      <Badge severity="owasp">{v.owasp}</Badge>
+                      <Badge severity="owasp">{v.owaspCategory || "—"}</Badge>
                       <span className="text-[11px] text-(--color-text3)">{v.tool}</span>
                     </div>
                   </div>
@@ -121,82 +199,88 @@ const result = await db.query(query, [req.query.id]);`;
             </div>
           </aside>
 
-          <section
-            className="min-w-0"
-            aria-labelledby="vuln-detail-title"
-          >
-            <div className="bg-[rgba(17,19,24,0.92)] border border-(--color-border) rounded-xl overflow-hidden backdrop-blur">
-            <div className="p-5 px-6 border-b border-(--color-border)">
-              <h2 id="vuln-detail-title" className="text-base font-semibold mb-2">SQL Injection via paramètre non échappé</h2>
-              <div className="flex gap-3 flex-wrap">
-                <Badge severity="critical">CRITIQUE</Badge>
-                <Badge severity="owasp">A05:2025</Badge>
-                <span className="text-xs text-(--color-text3) font-(--font-space-mono)">Semgrep</span>
-              </div>
-            </div>
-            <div className="p-6">
-              <div className="mb-6">
-                <div className="text-xs uppercase tracking-wider text-(--color-text3) mb-2.5">Description</div>
-                <div className="text-sm text-(--color-text2) leading-relaxed">
-                  L&apos;entrée utilisateur est directement concaténée dans une requête SQL sans prepared statements. Un attaquant peut manipuler la requête pour accéder à des données non autorisées.
+          {/* Détail de la vulnérabilité sélectionnée */}
+          <section className="min-w-0" aria-labelledby="vuln-detail-title">
+            {selectedVuln ? (
+              <div className="bg-[rgba(17,19,24,0.92)] border border-(--color-border) rounded-xl overflow-hidden backdrop-blur">
+                <div className="p-5 px-6 border-b border-(--color-border)">
+                  <h2 id="vuln-detail-title" className="text-base font-semibold mb-2">{selectedVuln.title}</h2>
+                  <div className="flex gap-3 flex-wrap">
+                    <Badge severity={selectedVuln.severity as "critical" | "high" | "medium" | "low"}>{severityLabel[selectedVuln.severity] || selectedVuln.severity.toUpperCase()}</Badge>
+                    <Badge severity="owasp">{selectedVuln.owaspCategory || "—"}</Badge>
+                    <span className="text-xs text-(--color-text3) font-(--font-space-mono)">{selectedVuln.tool}</span>
+                  </div>
+                </div>
+                <div className="p-6">
+                  {/* Description */}
+                  {selectedVuln.description && (
+                    <div className="mb-6">
+                      <div className="text-xs uppercase tracking-wider text-(--color-text3) mb-2.5">Description</div>
+                      <div className="text-sm text-(--color-text2) leading-relaxed">{selectedVuln.description}</div>
+                    </div>
+                  )}
+
+                  {/* Code vulnérable */}
+                  {selectedVuln.codeSnippet && (
+                    <div className="mb-6">
+                      <div className="text-xs uppercase tracking-wider text-(--color-text3) mb-2.5">
+                        Code vulnérable — {selectedVuln.filePath}{selectedVuln.lineStart ? `:${selectedVuln.lineStart}` : ""}
+                      </div>
+                      <div className="bg-(--color-bg) border border-(--color-border) rounded-lg p-4 font-(--font-space-mono) text-xs leading-relaxed overflow-x-auto">
+                        <pre className="text-(--color-red) whitespace-pre-wrap">{selectedVuln.codeSnippet}</pre>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Correction suggérée */}
+                  {selectedVuln.fixSuggestion && (
+                    <div className="mb-6">
+                      <div className="text-xs uppercase tracking-wider text-(--color-text3) mb-2.5 flex items-center gap-2">
+                        <Sparkles size={14} strokeWidth={2} />
+                        Correction suggérée
+                      </div>
+                      <div className="bg-(--color-bg) border border-(--color-border) rounded-lg p-4 font-(--font-space-mono) text-xs leading-relaxed overflow-x-auto">
+                        <pre className="text-(--color-green) whitespace-pre-wrap">{selectedVuln.fixSuggestion}</pre>
+                      </div>
+                      <div className="flex flex-wrap gap-2.5 mt-4">
+                        <button
+                        type="button"
+                        onClick={async () => {
+                          if (!scan || !selectedVuln) return;
+                          try {
+                            await markVulnFixed(scan.id, selectedVuln.id);
+                            setVulns(vulns.map(v => v.id === selectedVuln.id ? { ...v, isFixed: true } : v));
+                          } catch (err) { console.error(err); }
+                        }}
+                        disabled={selectedVuln.isFixed}
+                        className={`inline-flex items-center gap-2 py-2.5 px-5 rounded-lg font-semibold text-sm transition-opacity ${selectedVuln.isFixed ? "bg-(--color-surface2) text-(--color-text3) cursor-default" : "bg-(--color-green) text-black hover:opacity-90"}`}
+                      >
+                        <Check size={18} strokeWidth={2} />
+                        {selectedVuln.isFixed ? "Corrigé ✓" : "Appliquer"}
+                      </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Informations */}
+                  <div>
+                    <h3 className="text-xs uppercase tracking-wider text-(--color-text3) mb-2.5">Informations</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <InfoItem label="Fichier" value={selectedVuln.filePath || "—"} mono />
+                      <InfoItem label="Ligne" value={selectedVuln.lineStart ? String(selectedVuln.lineStart) : "—"} mono />
+                      <InfoItem label="OWASP 2025" value={selectedVuln.owaspCategory || "—"} valueColor="var(--color-purple)" />
+                      <InfoItem label="CVSS Score" value={selectedVuln.cvssScore ? `${selectedVuln.cvssScore} / 10` : "—"} valueColor="var(--color-red)" />
+                      <InfoItem label="Règle" value={selectedVuln.ruleId || "—"} mono />
+                      <InfoItem label="Statut" value={selectedVuln.isFixed ? "Corrigé ✓" : "Non corrigé"} valueColor={selectedVuln.isFixed ? "var(--color-green)" : "var(--color-orange)"} />
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="mb-6">
-                <div className="text-xs uppercase tracking-wider text-(--color-text3) mb-2.5">Code vulnérable — routes/api.js:127</div>
-                <div className="bg-(--color-bg) border border-(--color-border) rounded-lg p-4 font-(--font-space-mono) text-xs leading-relaxed overflow-x-auto">
-                  <div className="text-(--color-text2)">app.get(&apos;/users&apos;, async (req, res) =&gt; &#123;</div>
-                  <div className="text-(--color-red) bg-[rgba(239,68,68,0.08)] -mx-4 px-4">-  const query = `SELECT * FROM users WHERE id = ${"${req.query.id}"}`;</div>
-                  <div className="text-(--color-text2)">  const result = await db.query(query);</div>
-                  <div className="text-(--color-text2)">&#125;);</div>
-                </div>
+            ) : (
+              <div className="bg-[rgba(17,19,24,0.92)] border border-(--color-border) rounded-xl p-10 text-center text-(--color-text3)">
+                Sélectionnez une vulnérabilité dans la liste.
               </div>
-              <div className="mb-6">
-                <div className="text-xs uppercase tracking-wider text-(--color-text3) mb-2.5 flex items-center gap-2">
-                  <Sparkles size={14} strokeWidth={2} />
-                  Correction suggérée par IA
-                </div>
-                <div className="bg-(--color-bg) border border-(--color-border) rounded-lg p-4 font-(--font-space-mono) text-xs leading-relaxed overflow-x-auto">
-                  <div className="text-(--color-text2)">app.get(&apos;/users&apos;, async (req, res) =&gt; &#123;</div>
-                  <div className="text-(--color-green) bg-[rgba(34,197,94,0.08)] -mx-4 px-4">+  const query = &apos;SELECT * FROM users WHERE id = ?&apos;;</div>
-                  <div className="text-(--color-green) bg-[rgba(34,197,94,0.08)] -mx-4 px-4">+  const result = await db.query(query, [req.query.id]);</div>
-                  <div className="text-(--color-text2)">&#125;);</div>
-                </div>
-                <div className="flex flex-wrap gap-2.5 mt-4">
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-2 py-2.5 px-5 rounded-lg bg-(--color-green) text-black font-semibold text-sm hover:opacity-90 transition-opacity focus-visible:ring-2 focus-visible:ring-(--color-green) focus-visible:ring-offset-2 focus-visible:ring-offset-(--color-bg)"
-                  >
-                    <Check size={18} strokeWidth={2} aria-hidden />
-                    Appliquer
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleCopy}
-                    className="inline-flex items-center gap-2 py-2.5 px-5 rounded-lg border border-(--color-border2) text-(--color-text) font-semibold text-sm hover:bg-(--color-surface2) transition-colors focus-visible:ring-2 focus-visible:ring-(--color-accent) focus-visible:ring-offset-2 focus-visible:ring-offset-(--color-bg)"
-                  >
-                    <Copy size={18} strokeWidth={2} aria-hidden />
-                    {copied ? "Copié !" : "Copier"}
-                  </button>
-                  <Link
-                    href="/report"
-                    className="inline-flex items-center gap-2 py-2.5 px-5 rounded-lg border border-(--color-border2) text-(--color-text) font-semibold text-sm hover:bg-(--color-surface2) transition-colors focus-visible:ring-2 focus-visible:ring-(--color-accent) focus-visible:ring-offset-2 focus-visible:ring-offset-(--color-bg)"
-                  >
-                    <FileText size={18} strokeWidth={2} aria-hidden />
-                    Rapport
-                  </Link>
-                </div>
-              </div>
-              <div>
-                <h3 className="text-xs uppercase tracking-wider text-(--color-text3) mb-2.5">Informations</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <InfoItem label="Fichier" value="routes/api.js" mono />
-                  <InfoItem label="Ligne" value="127" mono />
-                  <InfoItem label="OWASP 2025" value="A05 — Injection" valueColor="var(--color-purple)" />
-                  <InfoItem label="CVSS Score" value="9.8 / 10" valueColor="var(--color-red)" />
-                </div>
-              </div>
-            </div>
-          </div>
+            )}
           </section>
         </div>
       </main>
