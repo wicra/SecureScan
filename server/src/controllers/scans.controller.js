@@ -5,6 +5,7 @@ const ScanModel = require("../models/scan.model");
 const GitService = require("../services/git.service");
 const ScannerService = require("../services/scanner.service");
 const UploadService = require("../services/upload.service");
+const AiService = require("../services/ai.service");
 
 // ─── Configuration multer ────────────────────────────────────────────────────
 const UPLOADS_TMP = path.join(__dirname, '../../tmp/uploads');
@@ -318,6 +319,38 @@ const uploadScan = async (req, res, next) => {
     if (uploadedFilePath) { try { fs.unlinkSync(uploadedFilePath); } catch (_) {} }
     if (scan?.id) await ScanModel.markFailed(scan.id).catch(() => {});
     console.error(`❌ Scan upload échoué :`, err.message);
+    next(err);
+  }
+};
+
+// POST /api/scans/:id/vulnerabilities/:vulnId/ai-fix — Générer un fix IA on-demand
+// Appelé quand fixSuggestion est null et que l'utilisateur clique "AI Fix"
+const getAiFix = async (req, res, next) => {
+  try {
+    const vulnId = parseInt(req.params.vulnId);
+    if (isNaN(vulnId)) {
+      return res.status(400).json({ error: "ID de vulnérabilité invalide." });
+    }
+
+    // RÉCUPÈRE LA VULN EN DB
+    const vuln = await ScanModel.findVulnById(vulnId);
+    if (!vuln) {
+      return res.status(404).json({ error: "Vulnérabilité introuvable." });
+    }
+
+    // SI FIX DÉJÀ EN DB, ON LE RETOURNE SANS APPELER L'IA (économie d'appel)
+    if (vuln.fixSuggestion) {
+      return res.json({ fixSuggestion: vuln.fixSuggestion, cached: true });
+    }
+
+    // APPEL IA POUR GÉNÉRER LE FIX
+    const fix = await AiService.getAiFixForVuln(vuln);
+
+    // STOCKE EN DB POUR LES PROCHAINES FOIS
+    await ScanModel.updateFixSuggestion(vulnId, fix);
+
+    res.json({ fixSuggestion: fix, cached: false });
+  } catch (err) {
     next(err);
   }
 };
