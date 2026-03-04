@@ -24,8 +24,8 @@ async function callWithRetry(prompt) {
       lastErr = err;
       const isRetryable = err.message.includes('Rate limit') || err.message.includes('Provider returned error');
       if (isRetryable) {
-        console.warn(`    ↻ [AI] ${model} indisponible, essai du modèle suivant...`);
-        await sleep(2_000); // petite pause avant de tenter le suivant
+        console.warn(`[AI] ↻ ${model} indisponible → modèle suivant...`);
+        await sleep(2_000);
       } else {
         throw err; // erreur non récupérable (auth, prompt invalide...)
       }
@@ -44,11 +44,8 @@ function callOpenRouter(prompt, model = OPENROUTER_MODELS[0]) {
       temperature:  0.1,
     });
 
-    console.log(`\n${'═'.repeat(70)}`);
-    console.log(`  📤 [AI] → ${model}`);
-    console.log(`─── PROMPT ───────────────────────────────────────────────────────────`);
-    console.log(prompt);
-    console.log(`──────────────────────────────────────────────────────────────────────`);
+    const t0 = Date.now();
+    console.log(`[AI] ▶ ${model}`);
 
     const options = {
       hostname: 'openrouter.ai',
@@ -73,9 +70,7 @@ function callOpenRouter(prompt, model = OPENROUTER_MODELS[0]) {
             return;
           }
           const content = parsed.choices?.[0]?.message?.content || '';
-          console.log(`─── RÉPONSE (HTTP ${res.statusCode}) ──────────────────────────────────────────`);
-          console.log(content);
-          console.log(`${'═'.repeat(70)}\n`);
+          console.log(`[AI] ✓ HTTP ${res.statusCode} · ${Date.now() - t0}ms · ${content.length} chars`);
           resolve(content);
         } catch {
           reject(new Error(`OpenRouter: réponse invalide — ${data.slice(0, 200)}`));
@@ -116,32 +111,27 @@ async function getAiFixForVuln(vuln) {
   const fileName = (vuln.filePath || 'unknown').split(/[/\\]/).pop();
 
   const prompt = [
-    `You are an expert security engineer. A static analysis tool flagged the code below as vulnerable.`,
-    `Your ONLY job is to output the fixed version of that code — nothing else.`,
+    `You are an expert security engineer. Fix the vulnerable code snippet below.`,
     ``,
-    `### Context`,
-    `- File      : ${fileName}`,
-    `- Language  : ${ext}`,
-    `- Severity  : ${vuln.severity}`,
-    `- Rule      : ${vuln.ruleId || vuln.owaspCategory || 'security issue'}`,
-    `- Issue     : ${vuln.description || 'Security vulnerability detected'}`,
-    `- Location  : lines ${vuln.lineStart || '?'}–${vuln.lineEnd || '?'}`,
+    `### Vulnerability`,
+    `- File     : ${fileName}  (lines ${vuln.lineStart || '?'}–${vuln.lineEnd || '?'})`,
+    `- Language : ${ext}`,
+    `- Severity : ${vuln.severity}`,
+    `- Rule     : ${vuln.ruleId || vuln.owaspCategory || 'security issue'}`,
+    `- Issue    : ${vuln.description || 'Security vulnerability detected'}`,
     ``,
     `### Vulnerable code`,
     `\`\`\`${ext}`,
     vuln.codeSnippet.trim(),
     `\`\`\``,
     ``,
-    `### What to do`,
-    `Rewrite the snippet above to fix the vulnerability.`,
-    `Apply the minimal change needed: fix the security issue, preserve the original logic.`,
-    ``,
-    `### Output format (STRICT)`,
-    `- Output ONLY the corrected ${ext} code`,
-    `- Do NOT wrap it in markdown fences`,
-    `- Do NOT add any explanation, comment, or prose before or after the code`,
-    `- Do NOT repeat the vulnerable version`,
-    `- The output must be valid, compilable ${ext} code`,
+    `### Output rules (STRICT — respect every point)`,
+    `1. The FIRST line of your output MUST be a code comment explaining what you changed and why:`,
+    `   Format: // SECURITY FIX: <one sentence>`,
+    `2. After that comment, output ONLY the corrected ${ext} code`,
+    `3. Apply the MINIMAL change to fix the security issue — preserve the original logic`,
+    `4. No markdown fences, no prose, no repeated vulnerable version`,
+    `5. The output must be valid, runnable ${ext} code`,
   ].join('\n');
 
   const response = await callWithRetry(prompt);
