@@ -23,7 +23,7 @@ const ScanModel = {
     });
   },
 
-  // Persister le langage détecté (appelé juste après la détection)
+  // Persister le langage détecté
   async updateLanguage(scanId, language) {
     return prisma.scan.update({
       where: { id: scanId },
@@ -31,7 +31,7 @@ const ScanModel = {
     });
   },
 
-  // Mettre à jour avec les stats du scan (sans les vulnérabilités)
+  // Mettre à jour avec les stats du scan
   async updateStats(scanId, { score, vulnTotal, vulnCritical, vulnHigh, vulnMedium, vulnLow, secretsCount, filesTotal, filesImpacted }) {
     return prisma.scan.update({
       where: { id: scanId },
@@ -51,26 +51,24 @@ const ScanModel = {
     });
   },
 
-  // INSÉRER LES VULNÉRABILITÉS EN MASSE APRÈS LE SCAN
-  // Supporte les deux formats : mocks Dev A (finding.message/line) ET services Dev B (finding.title/lineStart)
+  // Insérer les vulnérabilités en masse après le scan
   async insertVulnerabilities(scanId, vulnerabilities) {
-    // Helpers de troncature défensive (sécurité si la DB a des limites strictes)
-    const trunc  = (s, n) => (s && typeof s === 'string') ? s.slice(0, n) : s;
+    const trunc = (s, n) => (s && typeof s === 'string') ? s.slice(0, n) : s;
 
     const data = vulnerabilities.map((vuln) => ({
       scanId,
       tool:          vuln.finding.tool,
-      title:         trunc(vuln.finding.title         || vuln.finding.message      || 'Vulnérabilité inconnue', 500),
-      description:   vuln.description           || vuln.finding.description  || null,  // @db.Text → pas de limite
+      title:         trunc(vuln.finding.title || vuln.finding.message || 'Vulnérabilité inconnue', 500),
+      description:   vuln.description || vuln.finding.description || null,
       severity:      vuln.finding.severity,
-      owaspCategory: trunc(vuln.owaspId               || null, 50),
-      filePath:      trunc(vuln.finding.filePath      || null, 1000),
-      lineStart:     vuln.finding.lineStart     || vuln.finding.line         || null,
-      lineEnd:       vuln.finding.lineEnd       || null,
-      ruleId:        trunc(vuln.finding.ruleId        || null, 500),
-      codeSnippet:   vuln.finding.codeSnippet   || vuln.codeSnippet          || null,
-      fixSuggestion: vuln.finding.fixSuggestion || vuln.suggestedFix         || null,
-      cvssScore:     vuln.finding.cvssScore     || vuln.cvssScore            || null,
+      owaspCategory: trunc(vuln.owaspId || null, 50),
+      filePath:      trunc(vuln.finding.filePath || null, 1000),
+      lineStart:     vuln.finding.lineStart || vuln.finding.line || null,
+      lineEnd:       vuln.finding.lineEnd || null,
+      ruleId:        trunc(vuln.finding.ruleId || null, 500),
+      codeSnippet:   vuln.finding.codeSnippet || vuln.codeSnippet || null,
+      fixSuggestion: vuln.finding.fixSuggestion || vuln.suggestedFix || null,
+      cvssScore:     vuln.finding.cvssScore || vuln.cvssScore || null,
       isFixed: false,
     }));
 
@@ -81,10 +79,7 @@ const ScanModel = {
   async markFailed(scanId) {
     return prisma.scan.update({
       where: { id: scanId },
-      data: {
-        status: "failed",
-        completedAt: new Date(),
-      },
+      data: { status: "failed", completedAt: new Date() },
     });
   },
 
@@ -94,8 +89,6 @@ const ScanModel = {
       where: { id: scanId },
       include: {
         vulnerabilities: {
-          // TRI : cvssScore desc place les critiques en premier de façon fiable
-          // orderBy severity "asc" est alphabétique : "low" < "medium" → ordre cassé
           orderBy: [{ cvssScore: 'desc' }, { createdAt: 'asc' }],
         },
         reports: true,
@@ -103,7 +96,7 @@ const ScanModel = {
     });
   },
 
-  // Récupérer le score uniquement (pour les visiteurs non connectés)
+  // Récupérer le score uniquement (visiteurs non connectés)
   async findScoreOnly(scanId) {
     return prisma.scan.findUnique({
       where: { id: scanId },
@@ -123,7 +116,7 @@ const ScanModel = {
     });
   },
 
-  // Liste des scans d'un utilisateur (pour l'historique)
+  // Liste des scans d'un utilisateur
   async findByUserId(userId) {
     return prisma.scan.findMany({
       where: { userId },
@@ -154,14 +147,13 @@ const ScanModel = {
   async toggleFavorite(scanId) {
     const scan = await prisma.scan.findUnique({ where: { id: scanId } });
     if (!scan) return null;
-
     return prisma.scan.update({
       where: { id: scanId },
       data: { isFavorite: !scan.isFavorite },
     });
   },
 
-  // Supprimer un scan (cascade supprime les vulnérabilités et reports)
+  // Supprimer un scan
   async delete(scanId) {
     return prisma.scan.delete({ where: { id: scanId } });
   },
@@ -174,20 +166,22 @@ const ScanModel = {
     });
   },
 
-  // Récupérer les vulnérabilités d'un scan avec filtres
+  // Récupérer les vulnérabilités avec filtres
   async getVulnerabilities(scanId, { severity, owasp } = {}) {
     const where = { scanId };
-
-    if (severity) {
-      where.severity = severity;
-    }
-    if (owasp) {
-      where.owaspCategory = owasp;
-    }
-
+    if (severity) where.severity = severity;
+    if (owasp) where.owaspCategory = owasp;
     return prisma.vulnerability.findMany({
       where,
       orderBy: { createdAt: "desc" },
+    });
+  },
+
+  // Rattacher un scan anonyme à un utilisateur
+  async claimScan(scanId, userId) {
+    return prisma.scan.update({
+      where: { id: scanId },
+      data: { userId },
     });
   },
 };
