@@ -2,6 +2,10 @@
 tmp/
 server/tmp/
 
+# Env files
+server/.env
+front/.env
+
 # Divers OS
 .DS_Store
 Thumbs.db

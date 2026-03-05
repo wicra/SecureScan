@@ -21,7 +21,7 @@ const storage = multer.diskStorage({
 
 const uploadMiddleware = multer({
   storage,
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50 Mo max
+  limits: { fileSize: 1 * 1024 * 1024 * 1024 }, // 1 Go max
   fileFilter: (_req, file, cb) => {
     if (file.originalname.toLowerCase().endsWith('.zip')) {
       cb(null, true);

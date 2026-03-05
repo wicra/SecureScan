@@ -15,7 +15,7 @@ function spawnAsync(cmd, args = [], opts = {}) {
     timeout  = 120_000,
     env      = process.env,
     cwd      = undefined,
-    shell    = true,
+    shell    = false,
     maxBytes = 50 * 1024 * 1024, // 50 MB
   } = opts;
 

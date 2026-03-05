@@ -15,6 +15,27 @@ const UploadService = {
    * @returns {string} - chemin absolu du dossier extrait, prêt pour le scan
    */
   extractZip(zipFilePath) {
+    const MAX_ZIP_BYTES = 1 * 1024 * 1024 * 1024; // 1 GB
+
+    // Basic checks before extraction to avoid long/blocking operations
+    const stats = fs.statSync(zipFilePath);
+    if (stats.size > MAX_ZIP_BYTES) {
+      throw new Error(`Archive trop volumineuse (${(stats.size / 1024 / 1024).toFixed(1)} MB). Limite: 200 MB.`);
+    }
+
+    // Check ZIP magic bytes (PK..) to detect non-zip uploads
+    const fd = fs.openSync(zipFilePath, 'r');
+    try {
+      const header = Buffer.alloc(4);
+      fs.readSync(fd, header, 0, 4, 0);
+      const sig = header.toString('binary');
+      if (!sig.startsWith('PK')) {
+        throw new Error('Fichier uploadé n\'est pas une archive ZIP valide.');
+      }
+    } finally {
+      fs.closeSync(fd);
+    }
+
     const id = crypto.randomUUID();
     const extractDir = path.join(TMP_DIR, `scan-upload-${id}`);
     fs.mkdirSync(extractDir, { recursive: true });

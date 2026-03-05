@@ -45,7 +45,7 @@ async function runEslint(repoPath) {
         '--resolve-plugins-relative-to', serverDir,
         absPath,
       ],
-      { timeout: 120_000, env: toolsEnv(), shell: true }
+      { timeout: 120_000, env: toolsEnv(), shell: false }
     );
   } catch (err) {
     // EN CAS D'ERREUR, LOG ET RETOURNE UN TABLEAU VIDE

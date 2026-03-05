@@ -35,7 +35,7 @@ async function runNpmAudit(repoPath) {
       await spawnAsync(
         'npm',
         ['install', '--package-lock-only', '--ignore-scripts', '--legacy-peer-deps'],
-        { timeout: 120_000, env: toolsEnv(), cwd: absPath, shell: true }
+        { timeout: 120_000, env: toolsEnv(), cwd: absPath, shell: false }
       );
     } catch { /* on tente quand même npm audit */ }
   }
@@ -46,7 +46,7 @@ async function runNpmAudit(repoPath) {
     result = await spawnAsync(
       'npm',
       ['audit', '--json', '--omit=optional'],
-      { timeout: 180_000, env: toolsEnv(), cwd: absPath, shell: true }
+      { timeout: 180_000, env: toolsEnv(), cwd: absPath, shell: false }
     );
   } catch (err) {
     // EN CAS D'ERREUR, LOG ET RETOURNE UN TABLEAU VIDE

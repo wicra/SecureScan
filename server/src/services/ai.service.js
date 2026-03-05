@@ -65,15 +65,19 @@ function callOpenRouter(prompt, model = OPENROUTER_MODELS[0]) {
       res.on('end', () => {
         try {
           const parsed = JSON.parse(data);
-          if (parsed.error) {
-            reject(new Error(`OpenRouter API: ${parsed.error.message || JSON.stringify(parsed.error)}`));
-            return;
-          }
-          const content = parsed.choices?.[0]?.message?.content || '';
-          console.log(`[AI] ✓ HTTP ${res.statusCode} · ${Date.now() - t0}ms · ${content.length} chars`);
-          resolve(content);
+            if (parsed.error) {
+              // Log full error body for debugging
+              console.error('[AI] OpenRouter returned error body:', parsed.error);
+              const msg = parsed.error.message || JSON.stringify(parsed.error);
+              reject(new Error(`OpenRouter API: ${msg}`));
+              return;
+            }
+            const content = parsed.choices?.[0]?.message?.content || '';
+            console.log(`[AI] ✓ HTTP ${res.statusCode} · ${Date.now() - t0}ms · ${content.length} chars`);
+            resolve(content);
         } catch {
-          reject(new Error(`OpenRouter: réponse invalide — ${data.slice(0, 200)}`));
+            console.error('[AI] OpenRouter raw response:', data.slice(0, 1000));
+            reject(new Error(`OpenRouter: réponse invalide — ${data.slice(0, 200)}`));
         }
       });
     });

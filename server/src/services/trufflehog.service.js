@@ -30,7 +30,7 @@ async function runTrufflehog(repoPath) {
     result = await spawnAsync(
       'trufflehog',
       ['filesystem', absPath, '--json', '--no-update'],
-      { timeout: 120_000, env: toolsEnv(), shell: true }
+      { timeout: 120_000, env: toolsEnv(), shell: false }
     );
   } catch (err) {
     // EN CAS D'ERREUR, LOG ET RETOURNE UN TABLEAU VIDE
