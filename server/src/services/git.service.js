@@ -121,7 +121,7 @@ const GitService = {
         console.log(`🗑️ Nettoyage : ${resolved}`);
       }
     } catch (err) {
-      console.error(`⚠️ Erreur nettoyage ${repoPath}:`, err.message);
+      console.error('⚠️ Erreur nettoyage ' + repoPath + ':', err.message);
     }
   },
 };

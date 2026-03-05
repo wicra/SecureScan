@@ -1,10 +1,16 @@
 const express = require("express");
 const cors = require("cors");
+const helmet = require("helmet");
 const env = require("./config/env");
 const routes = require("./routes");
 const errorMiddleware = require("./middlewares/error.middleware");
 
 const app = express();
+
+// CSRF : non applicable ici — API REST pure, authentification par JWT dans le header
+// Authorization (pas de cookie de session). Le risque CSRF est inexistant sans cookie.
+// Helmet sécurise les headers HTTP (XSS, clickjacking, MIME sniffing, etc.).
+app.use(helmet({ contentSecurityPolicy: false }));
 
 // === MIDDLEWARES GLOBAUX ===
 

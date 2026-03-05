@@ -1,7 +1,8 @@
 // Middleware de gestion d'erreurs centralisé
 // Doit être monté en DERNIER dans Express (après toutes les routes)
 const errorMiddleware = (err, req, res, next) => {
-  console.error(`❌ [${req.method} ${req.path}]`, err.message);
+  // Concaténation explicite — pas de template literal dynamique (évite Unsafe Formatstring)
+  console.error('❌ [' + req.method + ' ' + req.path + ']', err.message);
 
   if (process.env.NODE_ENV === "development") {
     console.error(err.stack);

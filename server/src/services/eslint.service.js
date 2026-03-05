@@ -26,8 +26,14 @@ async function runEslint(repoPath) {
   const absPath    = path.resolve(repoPath);
   // safePath garantit que le fichier de config reste dans le répertoire du repo
   const configPath = safePath(absPath, '.eslint-securescan.json');
-  const eslintBin  = path.join(__dirname, '..', '..', 'node_modules', '.bin', 'eslint');
   const serverDir  = path.join(__dirname, '..', '..');
+
+  // Sur Windows, les scripts dans node_modules/.bin sont des .cmd — on doit lancer
+  // node directement avec le chemin du binaire JS pour éviter ENOENT sans shell.
+  const isWin     = process.platform === 'win32';
+  const eslintJs  = path.join(serverDir, 'node_modules', 'eslint', 'bin', 'eslint.js');
+  const cmd       = process.execPath; // chemin de node lui-même
+  const baseArgs  = [eslintJs];
 
   // CRÉE LE FICHIER DE CONFIG TEMPORAIRE DANS LE REPO
   fs.writeFileSync(configPath, JSON.stringify(ESLINT_CONFIG, null, 2));
@@ -36,8 +42,9 @@ async function runEslint(repoPath) {
   try {
     // LANCE ESLINT EN LIGNE DE COMMANDE AVEC LES BONS PARAMÈTRES
     result = await spawnAsync(
-      eslintBin,
+      cmd,
       [
+        ...baseArgs,
         '--config', configPath,
         '--format', 'json',
         '--ext', '.js,.ts,.jsx,.tsx',

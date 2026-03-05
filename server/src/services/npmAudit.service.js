@@ -16,7 +16,8 @@ const SEVERITY_MAP = {
   info:     'low',
 };
 
-
+// Sur Windows, 'npm' est 'npm.cmd' (script batch) — ENOENT sans shell si on appelle 'npm'
+const NPM_CMD = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 // FONCTION PRINCIPALE : LANCE L'ANALYSE NPM AUDIT SUR LE REPO
 /**
  * Exécute `npm audit` sur un repo local.
@@ -33,7 +34,7 @@ async function runNpmAudit(repoPath) {
   if (!fs.existsSync(lockFile) && fs.existsSync(packageJson)) {
     try {
       await spawnAsync(
-        'npm',
+        NPM_CMD,
         ['install', '--package-lock-only', '--ignore-scripts', '--legacy-peer-deps'],
         { timeout: 120_000, env: toolsEnv(), cwd: absPath, shell: false }
       );
@@ -44,7 +45,7 @@ async function runNpmAudit(repoPath) {
   try {
     // LANCE NPM AUDIT EN LIGNE DE COMMANDE AVEC LES BONS PARAMÈTRES
     result = await spawnAsync(
-      'npm',
+      NPM_CMD,
       ['audit', '--json', '--omit=optional'],
       { timeout: 180_000, env: toolsEnv(), cwd: absPath, shell: false }
     );

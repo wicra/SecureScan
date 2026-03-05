@@ -1,5 +1,6 @@
 const express = require('express');
 const cors    = require('cors');
+const helmet  = require('helmet');
 const logger  = require('morgan');
 
 const router       = require('./src/routes/index');
@@ -8,6 +9,9 @@ const errorHandler = require('./src/middlewares/error.middleware');
 const app = express();
 
 // ── Middlewares globaux ────────────────────────────────────────────
+// CSRF : non applicable — API REST JWT, pas de cookie de session.
+// Helmet sécurise les headers HTTP (XSS, clickjacking, MIME sniffing, etc.).
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());                             // Autorise les requêtes du frontend React
 app.use(logger('dev'));                      // Logs HTTP en dev
 app.use(express.json());                     // Parse le body JSON
