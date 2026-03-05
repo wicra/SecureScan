@@ -4,6 +4,7 @@ const path = require('path');
 const fs   = require('fs');
 const { toolsEnv }   = require('../config/tools');
 const { spawnAsync } = require('../utils/spawn');
+const { safePath }   = require('../utils/safePath');
 
 
 // TABLE DE CORRESPONDANCE ENTRE LES NIVEAUX NPM AUDIT ET SECURESCAN
@@ -26,8 +27,10 @@ async function runNpmAudit(repoPath) {
   const absPath = path.resolve(repoPath);
 
   // SI PAS DE PACKAGE-LOCK.JSON → EN GÉNÉRER UN SANS INSTALLER (PLUS RAPIDE)
-  const lockFile = path.join(absPath, 'package-lock.json');
-  if (!fs.existsSync(lockFile) && fs.existsSync(path.join(absPath, 'package.json'))) {
+  // safePath garantit que lockFile et packageJson restent dans le répertoire du repo
+  const lockFile   = safePath(absPath, 'package-lock.json');
+  const packageJson = safePath(absPath, 'package.json');
+  if (!fs.existsSync(lockFile) && fs.existsSync(packageJson)) {
     try {
       await spawnAsync(
         'npm',

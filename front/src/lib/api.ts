@@ -18,7 +18,22 @@ function headers(withAuth = false): HeadersInit {
 
 // === AUTH ===
 
+// Réclame le scan anonyme (s'il existe) et l'attache à l'utilisateur connecté
+async function claimAnonymousScan(scanId: number): Promise<void> {
+  await fetch(`${API_URL}/scans/${scanId}/claim`, {
+    method: "PATCH",
+    headers: headers(true),
+  });
+  // Supprimer du localStorage dans tous les cas : même en cas d'erreur, ce scan
+  // ne doit plus être proposé à un autre compte
+  localStorage.removeItem("securescan_current_scan");
+}
+
 export async function login(email: string, password: string) {
+  // Récupérer l'ID du scan anonyme AVANT de stocker le token
+  const rawId = localStorage.getItem("securescan_current_scan");
+  const anonymousScanId = rawId ? parseInt(rawId) : null;
+
   const res = await fetch(`${API_URL}/auth/login`, {
     method: "POST",
     headers: headers(),
@@ -26,13 +41,21 @@ export async function login(email: string, password: string) {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Erreur de connexion");
-  // Stocker le token
+
   localStorage.setItem("securescan_token", data.token);
   localStorage.setItem("securescan_user", JSON.stringify(data.user));
+
+  // Rattacher le scan anonyme à ce compte, puis le retirer du localStorage
+  if (anonymousScanId) await claimAnonymousScan(anonymousScanId);
+
   return data;
 }
 
 export async function register(name: string, email: string, password: string) {
+  // Récupérer l'ID du scan anonyme AVANT de stocker le token
+  const rawId = localStorage.getItem("securescan_current_scan");
+  const anonymousScanId = rawId ? parseInt(rawId) : null;
+
   const res = await fetch(`${API_URL}/auth/register`, {
     method: "POST",
     headers: headers(),
@@ -40,8 +63,13 @@ export async function register(name: string, email: string, password: string) {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Erreur d'inscription");
+
   localStorage.setItem("securescan_token", data.token);
   localStorage.setItem("securescan_user", JSON.stringify(data.user));
+
+  // Rattacher le scan anonyme à ce compte, puis le retirer du localStorage
+  if (anonymousScanId) await claimAnonymousScan(anonymousScanId);
+
   return data;
 }
 
@@ -57,6 +85,7 @@ export async function getMe() {
 export function logout() {
   localStorage.removeItem("securescan_token");
   localStorage.removeItem("securescan_user");
+  localStorage.removeItem("securescan_current_scan");
 }
 
 export function isLoggedIn(): boolean {

@@ -20,7 +20,7 @@ const env = {
 // VERIFICATION IMPERATIF
 const required = ["DATABASE_URL", "JWT_SECRET"];
 for (const key of required) {
-  if (!env[key]) {
+  if (!Object.prototype.hasOwnProperty.call(env, key) || !env[key]) {
     console.error(`❌ Variable d'environnement manquante : ${key}`);
     console.error(`   Copiez .env.example en .env et remplissez les valeurs.`);
     process.exit(1);

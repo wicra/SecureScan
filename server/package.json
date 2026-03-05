@@ -12,9 +12,9 @@
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
-    "express": "~4.16.1",
+    "express": "^4.21.2",
     "jsonwebtoken": "^9.0.3",
-    "morgan": "~1.9.1",
+    "morgan": "^1.10.1",
     "multer": "^2.1.0",
     "simple-git": "^3.32.3",
     "zod": "^4.3.6"

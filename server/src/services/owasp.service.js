@@ -140,9 +140,10 @@ function mapFindings(findings) {
 }
 
 // CVSS PAR DÉFAUT BASÉ SUR LA SÉVÉRITÉ QUAND AUCUN SCORE N'EST FOURNI
+const CVSS_DEFAULTS = new Map([['critical', 9.8], ['high', 7.5], ['medium', 5.0], ['low', 3.0]]);
+
 function resolveCvss(severity) {
-  const defaults = { critical: 9.8, high: 7.5, medium: 5.0, low: 3.0 };
-  return defaults[severity] ?? 3.0;
+  return CVSS_DEFAULTS.get(severity) ?? 3.0;
 }
 
 module.exports = { mapFindings, resolveOwasp };

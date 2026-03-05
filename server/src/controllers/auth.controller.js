@@ -94,10 +94,14 @@ const githubRedirect = (req, res) => {
     return res.status(501).json({ error: "OAuth GitHub non configuré." });
   }
 
+  // Le front peut passer l'ID du scan anonyme pour le rattacher après connexion
+  const scanId = req.query.scanId || "";
+
   const params = new URLSearchParams({
     client_id: env.GITHUB_CLIENT_ID,
     redirect_uri: env.GITHUB_CALLBACK_URL,
     scope: "user:email",
+    ...(scanId ? { state: scanId } : {}),
   });
 
   res.redirect(`https://github.com/login/oauth/authorize?${params}`);
@@ -161,9 +165,13 @@ const githubCallback = async (req, res, next) => {
     // Générer le JWT
     const token = generateToken(user);
 
+    // Récupérer l'ID du scan anonyme passé en state (optionnel)
+    const scanId = req.query.state || "";
+    const scanParam = scanId ? `&scanId=${scanId}` : "";
+
     // Redirige vers le front avec le token dans l'URL
     // Le front le récupère et le stocke dans localStorage
-    res.redirect(`http://localhost:5173/auth/callback?token=${token}`);
+    res.redirect(`http://localhost:3000/auth/callback?token=${token}${scanParam}`);
   } catch (err) {
     next(err);
   }

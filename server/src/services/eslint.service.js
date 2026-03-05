@@ -4,6 +4,7 @@ const path = require('path');
 const fs   = require('fs');
 const { toolsEnv }   = require('../config/tools');
 const { spawnAsync } = require('../utils/spawn');
+const { safePath }   = require('../utils/safePath');
 
 
 // TABLE DE CORRESPONDANCE ENTRE LES NIVEAUX ESLINT ET SECURESCAN
@@ -23,7 +24,8 @@ const ESLINT_CONFIG = {
 async function runEslint(repoPath) {
   // RÉCUPÈRE LES CHEMINS ABSOLUS NÉCESSAIRES
   const absPath    = path.resolve(repoPath);
-  const configPath = path.join(absPath, '.eslint-securescan.json');
+  // safePath garantit que le fichier de config reste dans le répertoire du repo
+  const configPath = safePath(absPath, '.eslint-securescan.json');
   const eslintBin  = path.join(__dirname, '..', '..', 'node_modules', '.bin', 'eslint');
   const serverDir  = path.join(__dirname, '..', '..');
 

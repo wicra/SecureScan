@@ -9,10 +9,16 @@ const SEVERITY_ORDER = ['low', 'medium', 'high', 'critical'];
  
 // CALCULE LE SCORE GLOBAL DE SÉCURITÉ (0 = COMPROMIS, 100 = PROPRE)
 // FORMULE PLAFONNÉE : CHAQUE SÉVÉRITÉ CONTRIBUE AU PLUS X POINTS DE PÉNALITÉ
+const VALID_SEVERITIES = new Set(['critical', 'high', 'medium', 'low']);
+
 function calculate(mappedVulns) {
-  const counts = { critical: 0, high: 0, medium: 0, low: 0 };
+  // Object.create(null) : pas de prototype → élimine le risque de prototype pollution
+  const counts = Object.create(null);
+  counts.critical = 0; counts.high = 0; counts.medium = 0; counts.low = 0;
+
   for (const v of mappedVulns) {
-    counts[v.finding.severity] = (counts[v.finding.severity] || 0) + 1;
+    const sev = v.finding.severity;
+    if (VALID_SEVERITIES.has(sev)) counts[sev]++;
   }
  
   const penalty = Object.keys(PENALTY_PER_VULN).reduce((sum, sev) => {

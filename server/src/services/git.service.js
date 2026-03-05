@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const env = require("../config/env");
+const { safePath } = require("../utils/safePath");
 
 const GitService = {
   /**
@@ -12,13 +13,15 @@ const GitService = {
    */
   async cloneRepo(repoUrl) {
     // Créer le dossier temporaire s'il n'existe pas
-    if (!fs.existsSync(env.TMP_SCAN_DIR)) {
-      fs.mkdirSync(env.TMP_SCAN_DIR, { recursive: true });
+    const tmpDir = path.resolve(env.TMP_SCAN_DIR);
+    if (!fs.existsSync(tmpDir)) {
+      fs.mkdirSync(tmpDir, { recursive: true });
     }
 
     // Générer un ID unique pour ce scan
-    const scanId = crypto.randomUUID();
-    const repoPath = path.join(env.TMP_SCAN_DIR, `scan-${scanId}`);
+    const scanId   = crypto.randomUUID();
+    // safePath garantit que repoPath reste bien dans tmpDir
+    const repoPath = safePath(tmpDir, `scan-${scanId}`);
 
     console.log(`📂 Clonage de ${repoUrl} dans ${repoPath}...`);
 
@@ -68,9 +71,11 @@ const GitService = {
     ];
 
     for (const { file, lang } of indicators) {
-      if (fs.existsSync(path.join(repoPath, file))) {
-        return lang;
-      }
+      try {
+        if (fs.existsSync(safePath(repoPath, file))) {
+          return lang;
+        }
+      } catch { /* path invalide, on ignore */ }
     }
 
     return null;
@@ -110,9 +115,10 @@ const GitService = {
    */
   cleanup(repoPath) {
     try {
-      if (fs.existsSync(repoPath)) {
-        fs.rmSync(repoPath, { recursive: true, force: true });
-        console.log(`🗑️ Nettoyage : ${repoPath}`);
+      const resolved = path.resolve(repoPath);
+      if (fs.existsSync(resolved)) {
+        fs.rmSync(resolved, { recursive: true, force: true });
+        console.log(`🗑️ Nettoyage : ${resolved}`);
       }
     } catch (err) {
       console.error(`⚠️ Erreur nettoyage ${repoPath}:`, err.message);

@@ -91,7 +91,6 @@ const ScanModel = {
         vulnerabilities: {
           orderBy: [{ cvssScore: 'desc' }, { createdAt: 'asc' }],
         },
-        reports: true,
       },
     });
   },
