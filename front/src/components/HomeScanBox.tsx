@@ -8,7 +8,7 @@ import {
   Folder, LockKeyhole, AlertTriangle, Key,
 } from "lucide-react";
 import { Badge } from "@/components/Badge";
-import { createScan, isLoggedIn } from "@/lib/api";
+import { createScan, isLoggedIn, setCurrentScanId } from "@/lib/api";
 
 const stepLabels = [
   "Clonage du dépôt",
@@ -89,6 +89,9 @@ export function HomeScanBox() {
         }, 800);
         return;
       }
+
+      // Scan anonyme : stocker l'ID pour le rattacher lors de la connexion
+      if (result.scanId) setCurrentScanId(result.scanId);
 
       setTimeout(() => {
         setShowProgress(false);

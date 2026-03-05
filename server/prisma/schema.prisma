@@ -56,7 +56,6 @@ model Scan {
   completedAt   DateTime?
 
   vulnerabilities Vulnerability[]
-  reports         Report[]
 
   @@map("scans")
 }
@@ -87,18 +86,3 @@ model Vulnerability {
   @@map("vulnerabilities")
 }
 
-// ─────────────────────────────────────────────
-// TABLE : reports
-// ─────────────────────────────────────────────
-model Report {
-  id        Int      @id @default(autoincrement())
-  scanId    Int
-  scan      Scan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
-
-  format    String   // pdf | html
-  language  String   @default("fr")  // fr | en
-  fileUrl   String?
-  createdAt DateTime @default(now())
-
-  @@map("reports")
-}
