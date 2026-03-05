@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { XCircle, Github, Lock, Eye, EyeOff, ArrowRight, UserPlus } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { login, register } from "@/lib/api";
+import { login, register, getCurrentScanId } from "@/lib/api";
 
 const INPUT_BASE =
   "w-full bg-(--color-bg) border rounded-lg py-3 px-3.5 text-sm text-(--color-text) outline-none transition-colors placeholder:text-(--color-text3) focus-visible:ring-2 focus-visible:ring-(--color-accent) focus-visible:ring-offset-2 focus-visible:ring-offset-(--color-bg) focus-visible:border-(--color-accent)";
@@ -77,7 +77,11 @@ export default function LoginPage() {
           </form>
 
           <div className="flex items-center gap-3 my-6"><div className="flex-1 h-px bg-(--color-border)" /><span className="text-xs text-(--color-text3)">ou</span><div className="flex-1 h-px bg-(--color-border)" /></div>
-          <button type="button" onClick={() => { window.location.href = "http://localhost:3001/api/auth/github"; }} className="w-full py-2.5 px-5 rounded-lg border border-(--color-border2) text-(--color-text) font-semibold text-sm hover:bg-(--color-surface2) flex items-center justify-center gap-2">
+          <button type="button" onClick={() => {
+            const scanId = getCurrentScanId();
+            const url = `http://localhost:3001/api/auth/github${scanId ? `?scanId=${scanId}` : ""}`;
+            window.location.href = url;
+          }} className="w-full py-2.5 px-5 rounded-lg border border-(--color-border2) text-(--color-text) font-semibold text-sm hover:bg-(--color-surface2) flex items-center justify-center gap-2">
             <Github size={18} strokeWidth={2} /> Continuer avec GitHub
           </button>
 
